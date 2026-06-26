@@ -25,6 +25,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Enables GitHub Pages automatically on first run (no manual Settings step needed)
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        with:
+          enablement: true
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
