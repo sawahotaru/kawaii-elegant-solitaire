@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     DndContext,
     DragOverlay,
@@ -11,9 +11,10 @@ import {
     defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2 } from 'lucide-react';
+import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX } from 'lucide-react';
 
 import { useGameState } from './hooks/useGameState';
+import { audio } from './utils/audio';
 import { Card } from './components/Card';
 import { DroppablePile } from './components/DroppablePile';
 import { canMoveToTableau, canMoveToFoundation } from './utils/gameLogic';
@@ -23,6 +24,27 @@ const App: React.FC = () => {
     const { state, drawCards, moveCards, undo, showHint, restart } = useGameState();
     const [activeCardId, setActiveCardId] = useState<string | null>(null);
     const [activeStack, setActiveStack] = useState<CardType[]>([]);
+    const [muted, setMuted] = useState<boolean>(() => {
+        try { return localStorage.getItem('kawaii-muted') === '1'; } catch { return false; }
+    });
+
+    // Sync mute state to the audio engine and persist the preference.
+    useEffect(() => {
+        audio.setMuted(muted);
+        try { localStorage.setItem('kawaii-muted', muted ? '1' : '0'); } catch { /* ignore */ }
+    }, [muted]);
+
+    // Unlock audio + start BGM on the first user gesture (autoplay policy).
+    useEffect(() => {
+        const unlock = () => { audio.resume(); window.removeEventListener('pointerdown', unlock); };
+        window.addEventListener('pointerdown', unlock);
+        return () => window.removeEventListener('pointerdown', unlock);
+    }, []);
+
+    // Victory fanfare.
+    useEffect(() => {
+        if (state.isGameWon) audio.playWin();
+    }, [state.isGameWon]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -93,6 +115,10 @@ const App: React.FC = () => {
                 targetData.type,
                 targetData.index
             );
+            if (targetData.type === 'foundation') audio.playFoundation();
+            else audio.playMove();
+        } else {
+            audio.playInvalid();
         }
     };
 
@@ -115,6 +141,7 @@ const App: React.FC = () => {
             for (let i = 0; i < 4; i++) {
                 if (canMoveToFoundation(card, state.foundation[i])) {
                     moveCards(sourceType, sourceIndex, [card.id], 'foundation', i);
+                    audio.playFoundation();
                     return;
                 }
             }
@@ -126,6 +153,7 @@ const App: React.FC = () => {
             const targetCard = state.tableau[i].length > 0 ? state.tableau[i][state.tableau[i].length - 1] : undefined;
             if (canMoveToTableau(card, targetCard)) {
                 moveCards(sourceType, sourceIndex, [card.id], 'tableau', i);
+                audio.playMove();
                 return;
             }
         }
@@ -181,14 +209,21 @@ const App: React.FC = () => {
 
                     <div className="flex gap-1 sm:gap-2">
                         <button
-                            onClick={undo}
+                            onClick={() => setMuted(m => !m)}
+                            className="p-2 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            title={muted ? 'Unmute' : 'Mute'}
+                        >
+                            {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+                        </button>
+                        <button
+                            onClick={() => { audio.playUndo(); undo(); }}
                             className="p-2 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
                             title="Undo"
                         >
                             <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                         <button
-                            onClick={showHint}
+                            onClick={() => { audio.playHint(); showHint(); }}
                             disabled={state.hintsRemaining <= 0}
                             className={`p-2 sm:p-3 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 flex flex-col items-center justify-center relative ${state.hintsRemaining <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pink-50'}`}
                             title="Hint"
@@ -217,7 +252,7 @@ const App: React.FC = () => {
                     <section className="grid grid-cols-7 gap-2 sm:gap-4">
                         {/* Stock & Waste */}
                         <div className="col-span-3 flex gap-2 sm:gap-6">
-                            <div className="relative group cursor-pointer" onClick={drawCards}>
+                            <div className="relative group cursor-pointer" onClick={() => { audio.playDraw(); drawCards(); }}>
                                 <div className="w-14 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/50 bg-pink-100/30 border-dashed flex items-center justify-center">
                                     <RotateCcw className="text-pink-200 w-6 h-6" />
                                 </div>
