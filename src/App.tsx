@@ -25,7 +25,11 @@ const App: React.FC = () => {
     const [activeCardId, setActiveCardId] = useState<string | null>(null);
     const [activeStack, setActiveStack] = useState<CardType[]>([]);
     const [muted, setMuted] = useState<boolean>(() => {
-        try { return localStorage.getItem('kawaii-muted') === '1'; } catch { return false; }
+        // Music/sound is muted by default; only unmuted if the user previously opted in.
+        try {
+            const stored = localStorage.getItem('kawaii-muted');
+            return stored === null ? true : stored === '1';
+        } catch { return true; }
     });
 
     // Sync mute state to the audio engine and persist the preference.
