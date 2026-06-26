@@ -21,6 +21,10 @@
 > サーバー不要・インストール不要。ブラウザで今すぐプレイできます 🌸
 > `main` ブランチへ push するたびに GitHub Actions が自動でビルド＆デプロイします。
 
+![Kawaii & Elegant Solitaire スクリーンショット](assets/screenshot.png)
+
+---
+
 ## 🌟 主な特徴
 
 - **Design**: 洗練されたパステルピンクの配色とグラスモーフィズムUI
