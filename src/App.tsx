@@ -26,8 +26,10 @@ const App: React.FC = () => {
     const [activeStack, setActiveStack] = useState<CardType[]>([]);
     const [muted, setMuted] = useState<boolean>(() => {
         // Music/sound is muted by default; only unmuted if the user previously opted in.
+        // The key is versioned (-v2) so stale '0' values written by older builds, which
+        // always autosaved an unmuted preference, no longer suppress the muted default.
         try {
-            const stored = localStorage.getItem('kawaii-muted');
+            const stored = localStorage.getItem('kawaii-muted-v2');
             return stored === null ? true : stored === '1';
         } catch { return true; }
     });
@@ -35,7 +37,7 @@ const App: React.FC = () => {
     // Sync mute state to the audio engine and persist the preference.
     useEffect(() => {
         audio.setMuted(muted);
-        try { localStorage.setItem('kawaii-muted', muted ? '1' : '0'); } catch { /* ignore */ }
+        try { localStorage.setItem('kawaii-muted-v2', muted ? '1' : '0'); } catch { /* ignore */ }
     }, [muted]);
 
     // Unlock audio + start BGM on the first user gesture (autoplay policy).
