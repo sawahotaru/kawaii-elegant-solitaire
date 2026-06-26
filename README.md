@@ -2,18 +2,24 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-ff9ec3.svg)
 ![React](https://img.shields.io/badge/React-18-61dafb.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178c6.svg)
 ![Vite](https://img.shields.io/badge/Vite-5-646cff.svg)
 
 パステルカラーと心地よいアニメーションを融合させた、究極に「Kawaii」ソリティアゲームです。  
 最新のWeb技術を駆使し、滑らかな操作性と安定したゲームプレイを提供します。
 
-## 🎮 ライブデモ
+## 🎮 今すぐ遊ぶ（ライブデモ）
 
-GitHub Pages で無料公開できます（サーバー不要）。`main` ブランチに push すると、付属の GitHub Actions が自動でビルド＆デプロイします。
+<p align="center">
+  <a href="https://sawahotaru.github.io/kawaii-elegant-solitaire/">
+    <img src="https://img.shields.io/badge/▶_PLAY_NOW-Live_Demo-ff9ec3?style=for-the-badge&logo=github&logoColor=white" alt="Play Now" />
+  </a>
+</p>
 
-> **デモURL**: `https://sawahotaru.github.io/kawaii-elegant-solitaire/`
-> （リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** に設定すると有効になります）
+### 🎮 ▶ [今すぐ遊ぶ（ライブデモ）](https://sawahotaru.github.io/kawaii-elegant-solitaire/)
+
+> サーバー不要・インストール不要。ブラウザで今すぐプレイできます 🌸
+> `main` ブランチへ push するたびに GitHub Actions が自動でビルド＆デプロイします。
 
 ## 🌟 主な特徴
 
