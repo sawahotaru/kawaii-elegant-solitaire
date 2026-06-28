@@ -26,6 +26,14 @@ const DIFFICULTIES: { key: Difficulty; label: string }[] = [
     { key: 'expert', label: '上級' },
 ];
 
+const HINT_OPTIONS: { key: string; label: string }[] = [
+    { key: 'auto', label: '自動' },
+    { key: '3', label: '3' },
+    { key: '5', label: '5' },
+    { key: '10', label: '10' },
+    { key: 'inf', label: '∞' },
+];
+
 const App: React.FC = () => {
     // 起動時の難易度は前回選択を復元（初回は初心者）。
     const [initialDifficulty] = useState<Difficulty>(() => {
@@ -35,12 +43,28 @@ const App: React.FC = () => {
         } catch { /* ignore */ }
         return 'beginner';
     });
-    const { state, drawCards, moveCards, undo, showHint, restart, autoComplete } = useGameState(initialDifficulty);
+    // ヒント上限の設定（'auto'=難易度準拠 / '3' / '5' / '10' / 'inf'=無制限）。前回選択を復元。
+    const [hintKey, setHintKey] = useState<string>(() => {
+        try {
+            const s = localStorage.getItem('kawaii-hintlimit');
+            if (s && ['auto', '3', '5', '10', 'inf'].includes(s)) return s;
+        } catch { /* ignore */ }
+        return 'auto';
+    });
+    const hintValue = (k: string): number | null => (k === 'auto' ? null : k === 'inf' ? 999 : parseInt(k, 10));
+
+    const { state, drawCards, moveCards, undo, showHint, restart, autoComplete, setHintLimit } = useGameState(initialDifficulty, hintValue(hintKey));
 
     const changeDifficulty = (d: Difficulty) => {
         if (d === state.difficulty) return;
         try { localStorage.setItem('kawaii-difficulty', d); } catch { /* ignore */ }
         restart(d);
+    };
+
+    const changeHintLimit = (k: string) => {
+        setHintKey(k);
+        try { localStorage.setItem('kawaii-hintlimit', k); } catch { /* ignore */ }
+        setHintLimit(hintValue(k));
     };
 
     const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -226,7 +250,7 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-game-bg text-gray-800 font-sans selection:bg-pink-200">
 
                 {/* Header HUD */}
-                <header className="fixed top-0 inset-x-0 h-16 sm:h-20 bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-4 flex items-center justify-between">
+                <header className="fixed top-0 inset-x-0 h-[92px] sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-4 flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-pink-100/50 p-2 rounded-xl hidden sm:block">
                             <Award className="text-pink-500 w-6 h-6" />
@@ -242,6 +266,21 @@ const App: React.FC = () => {
                                         className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-400 hover:bg-pink-200/70'}`}
                                     >
                                         {d.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex gap-1 mt-0.5 items-center">
+                                <span className="text-[9px] sm:text-[10px] text-pink-300 font-bold uppercase mr-0.5 flex items-center gap-0.5">
+                                    <Lightbulb className="w-2.5 h-2.5" />
+                                </span>
+                                {HINT_OPTIONS.map(o => (
+                                    <button
+                                        key={o.key}
+                                        onClick={() => changeHintLimit(o.key)}
+                                        title={`ヒント上限: ${o.key === 'auto' ? '難易度準拠' : o.key === 'inf' ? '無制限' : o.label}`}
+                                        className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow' : 'bg-pink-100/50 text-pink-400 hover:bg-pink-200/60'}`}
+                                    >
+                                        {o.label}
                                     </button>
                                 ))}
                             </div>
@@ -287,7 +326,7 @@ const App: React.FC = () => {
                             title="Hint"
                         >
                             <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
-                            {state.difficulty !== 'beginner' && (
+                            {state.hintsRemaining < 999 && (
                                 <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
                                     {state.hintsRemaining}
                                 </span>

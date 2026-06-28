@@ -7,13 +7,16 @@ import {
     deepCopyState,
     getScoreMultiplier,
     findValidMoves,
-    checkWin
+    checkWin,
+    defaultHints
 } from '../utils/gameLogic';
 import { solveBoards } from '../utils/solver';
 
-export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
+export const useGameState = (initialDifficulty: Difficulty = 'normal', initialHintLimit: number | null = null) => {
+    // ユーザー設定のヒント上限（null=難易度準拠）。新規ゲーム/難易度変更でも引き継ぐ。
+    const hintLimitRef = useRef<number | null>(initialHintLimit);
     const [state, setState] = useState<GameState>(() => ({
-        ...(initializeGame(initialDifficulty) as GameState),
+        ...(initializeGame(initialDifficulty, initialHintLimit) as GameState),
         difficulty: initialDifficulty,
         undoStack: [],
         score: 0,
@@ -176,7 +179,7 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
         stopAuto();
         const diff = difficulty || state.difficulty;
         setState({
-            ...(initializeGame(diff) as GameState),
+            ...(initializeGame(diff, hintLimitRef.current) as GameState),
             difficulty: diff,
             undoStack: [],
             score: 0,
@@ -185,6 +188,12 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
             hint: null,
         });
     }, [state.difficulty]);
+
+    // ヒント上限の設定変更。現在のゲームの残数も即座に反映（refill）し、以降のゲームにも適用。
+    const setHintLimit = useCallback((limit: number | null) => {
+        hintLimitRef.current = limit;
+        setState(prev => ({ ...prev, hintsRemaining: limit ?? defaultHints(prev.difficulty) }));
+    }, []);
 
     // オートコンプリート（一括あがり）: 全札が表向きなら勝ち筋を求めて自動再生する。
     const autoComplete = useCallback(() => {
@@ -225,5 +234,6 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
         showHint,
         restart,
         autoComplete,
+        setHintLimit,
     };
 };

@@ -88,7 +88,14 @@ const generateDeal = (difficulty: Difficulty): { tableau: Card[][]; stock: Card[
     return last; // 上限到達時のフォールバック（無限ループ防止）
 };
 
-export const initializeGame = (difficulty: Difficulty): Partial<GameState> => {
+/** 難易度ごとのヒント既定回数（999=実質無制限）。設定UIの「自動」で使われる。 */
+export const defaultHints = (difficulty: Difficulty): number =>
+    difficulty === 'expert' ? 1 : difficulty === 'normal' ? 3 : 999;
+
+/**
+ * @param hintLimit ユーザー設定のヒント上限。null なら難易度の既定値を使う。
+ */
+export const initializeGame = (difficulty: Difficulty, hintLimit: number | null = null): Partial<GameState> => {
     const { tableau, stock } = generateDeal(difficulty);
 
     return {
@@ -103,7 +110,7 @@ export const initializeGame = (difficulty: Difficulty): Partial<GameState> => {
         isGameWon: false,
         gameStatus: 'playing',
         hint: null,
-        hintsRemaining: difficulty === 'expert' ? 1 : difficulty === 'normal' ? 3 : 999,
+        hintsRemaining: hintLimit ?? defaultHints(difficulty),
     };
 };
 
