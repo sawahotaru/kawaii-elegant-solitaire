@@ -65,28 +65,24 @@
 
 ---
 
-## 🚀 環境構築 (Local Setup)
+## 🚀 導入方法
 
-### 1. 前提条件
-- **Node.js**: v18.0.0 以上推奨
+### 方法1: GitHub Pages（公開済み）
+このリポジトリは GitHub Pages ですでに公開済みです。インストール不要、下記URLからすぐに遊べます：
 
-### 2. インストール
-リポジトリをクローンし、ディレクトリ内で以下のコマンドを実行します。
+▶ **https://sawahotaru.github.io/kawaii-elegant-solitaire/**
+
+### 方法2: ローカルで開発する
+**前提**: Node.js v18.0.0 以上を推奨。
 
 ```bash
 git clone https://github.com/sawahotaru/kawaii-elegant-solitaire.git
 cd kawaii-elegant-solitaire
-npm install
+npm install      # 依存をインストール
+npm run dev      # 開発サーバー起動 → http://localhost:5173
 ```
 
-> ⚠️ **フォルダ名に関する注意**: プロジェクトを置くパスに `&` などのシェル特殊文字が含まれていると、`npm run dev` / `npm run build` がパス解決に失敗することがあります（特に Windows / PowerShell）。`&` を含まないフォルダ名（例: `kawaii-elegant-solitaire`）に配置してください。
-
-### 3. 開発サーバーの起動
-ローカルで動作を確認するには、以下のコマンドを実行して `http://localhost:5173` にアクセスします。
-
-```bash
-npm run dev
-```
+> ⚠️ **フォルダ名に関する注意**: パスに `&` などのシェル特殊文字が含まれると、`npm run dev` / `npm run build` がパス解決に失敗することがあります（特に Windows / PowerShell）。`&` を含まないフォルダ名（例: `kawaii-elegant-solitaire`）に配置してください。
 
 ---
 
