@@ -11,14 +11,18 @@ import {
     defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX, Sparkles, Wand2 } from 'lucide-react';
 
 import { useGameState } from './hooks/useGameState';
 import { audio } from './utils/audio';
 import { Card } from './components/Card';
 import { DroppablePile } from './components/DroppablePile';
-import { canMoveToTableau, canMoveToFoundation } from './utils/gameLogic';
-import { Card as CardType, Difficulty } from './types/game';
+import { canMoveToTableau, canMoveToFoundation, SUITS, RANKS } from './utils/gameLogic';
+import { Card as CardType, Difficulty, Suit, Rank } from './types/game';
+
+const SUIT_SYMBOL: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+const RANK_LABEL: Record<number, string> = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+const cardLabel = (suit: Suit, rank: Rank) => `${RANK_LABEL[rank] || rank}${SUIT_SYMBOL[suit]}`;
 
 const DIFFICULTIES: { key: Difficulty; label: string }[] = [
     { key: 'beginner', label: '初心者' },
@@ -53,10 +57,22 @@ const App: React.FC = () => {
     });
     const hintValue = (k: string): number | null => (k === 'auto' ? null : k === 'inf' ? 999 : parseInt(k, 10));
 
-    const { state, drawCards, moveCards, undo, showHint, restart, autoComplete, setHintLimit } = useGameState(initialDifficulty, hintValue(hintKey));
+    const { state, drawCards, moveCards, undo, showHint, restart, autoComplete, setHintLimit, swapCards } = useGameState(initialDifficulty, hintValue(hintKey));
+
+    // 【初心者限定】カード入れ替え（ズル）モード
+    const [swapMode, setSwapMode] = useState(false);
+    const [swapSource, setSwapSource] = useState<CardType | null>(null);
+    const isBeginner = state.difficulty === 'beginner';
+    const cancelSwap = () => { setSwapMode(false); setSwapSource(null); };
+    const pickSwapSource = (card: CardType) => { if (swapMode && card.isFaceUp) setSwapSource(card); };
+    const doSwap = (suit: Suit, rank: Rank) => {
+        if (swapSource) swapCards(swapSource.id, suit, rank);
+        cancelSwap();
+    };
 
     const changeDifficulty = (d: Difficulty) => {
         if (d === state.difficulty) return;
+        cancelSwap();
         try { localStorage.setItem('kawaii-difficulty', d); } catch { /* ignore */ }
         restart(d);
     };
@@ -250,13 +266,24 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-game-bg text-gray-800 font-sans selection:bg-pink-200">
 
                 {/* Header HUD */}
-                <header className="fixed top-0 inset-x-0 h-[92px] sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-4 flex items-center justify-between">
+                <header className="fixed top-0 inset-x-0 h-[92px] sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-2 sm:px-4 flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-4">
                         <div className="bg-pink-100/50 p-2 rounded-xl hidden sm:block">
                             <Award className="text-pink-500 w-6 h-6" />
                         </div>
                         <div>
-                            <h1 className="text-sm sm:text-lg font-bold text-pink-600 leading-tight">Kawaii Solitaire</h1>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-sm sm:text-lg font-bold text-pink-600 leading-tight">Kawaii Solitaire</h1>
+                                {isBeginner && (
+                                    <button
+                                        onClick={() => { setSwapSource(null); setSwapMode(m => !m); }}
+                                        className={`p-1 rounded-full border transition-all active:scale-95 ${swapMode ? 'bg-purple-500 text-white border-purple-300' : 'bg-purple-100/60 text-purple-500 border-purple-100 hover:bg-purple-200/70'}`}
+                                        title="カード入れ替え（初心者ズル）"
+                                    >
+                                        <Wand2 className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
                             <div className="flex gap-1 mt-0.5">
                                 {DIFFICULTIES.map(d => (
                                     <button
@@ -287,7 +314,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 sm:gap-8">
+                    <div className="flex items-center gap-2 sm:gap-8">
                         <div className="flex flex-col items-center">
                             <span className="text-[10px] sm:text-xs text-pink-400 font-bold uppercase">Score</span>
                             <span className="text-sm sm:text-xl font-black text-pink-600 tabular-nums">{state.score}</span>
@@ -307,14 +334,14 @@ const App: React.FC = () => {
                     <div className="flex gap-1 sm:gap-2">
                         <button
                             onClick={() => setMuted(m => !m)}
-                            className="p-2 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            className="p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
                             title={muted ? 'Unmute' : 'Mute'}
                         >
                             {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
                         </button>
                         <button
                             onClick={() => { audio.playUndo(); undo(); }}
-                            className="p-2 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            className="p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
                             title="Undo"
                         >
                             <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -322,7 +349,7 @@ const App: React.FC = () => {
                         <button
                             onClick={() => { audio.playHint(); showHint(); }}
                             disabled={state.hintsRemaining <= 0}
-                            className={`p-2 sm:p-3 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 flex flex-col items-center justify-center relative ${state.hintsRemaining <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pink-50'}`}
+                            className={`p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 flex flex-col items-center justify-center relative ${state.hintsRemaining <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pink-50'}`}
                             title="Hint"
                         >
                             <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -334,7 +361,7 @@ const App: React.FC = () => {
                         </button>
                         <button
                             onClick={() => restart()}
-                            className="p-2 sm:p-3 bg-pink-500 text-white rounded-xl hover:bg-pink-600 shadow-lg shadow-pink-200 transition-all active:scale-95"
+                            className="p-1.5 sm:p-3 bg-pink-500 text-white rounded-xl hover:bg-pink-600 shadow-lg shadow-pink-200 transition-all active:scale-95"
                             title="New Game"
                         >
                             <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -370,9 +397,10 @@ const App: React.FC = () => {
                                         key={`${state.waste[state.waste.length - 1].id}-${state.waste[state.waste.length - 1].isFaceUp}`}
                                         card={state.waste[state.waste.length - 1]}
                                         sourceType="waste"
-                                        onDoubleClick={() => handleAutoMove(state.waste[state.waste.length - 1], 'waste')}
+                                        onDoubleClick={swapMode ? undefined : () => handleAutoMove(state.waste[state.waste.length - 1], 'waste')}
+                                        onClick={swapMode ? () => pickSwapSource(state.waste[state.waste.length - 1]) : undefined}
                                         isHinted={state.hint?.from === state.waste[state.waste.length - 1].id}
-                                        className="absolute top-0 left-0"
+                                        className={`absolute top-0 left-0 ${swapSource?.id === state.waste[state.waste.length - 1].id ? 'ring-4 ring-purple-400' : ''}`}
                                     />
                                 )}
                                 <div className="absolute -bottom-6 left-0 right-0 text-[10px] text-center text-pink-300 font-bold uppercase tracking-tighter">Waste</div>
@@ -432,12 +460,13 @@ const App: React.FC = () => {
                                             sourceIndex={i}
                                             isHinted={state.hint?.from === card.id || state.hint?.to === `tableau-${i}`}
                                             isBeingDragged={activeStack.some(c => c.id === card.id)}
-                                            onDoubleClick={() => handleAutoMove(card, 'tableau', i)}
+                                            onDoubleClick={swapMode ? undefined : () => handleAutoMove(card, 'tableau', i)}
+                                            onClick={swapMode && card.isFaceUp ? () => pickSwapSource(card) : undefined}
                                             style={{
                                                 marginTop: idx === 0 ? 0 : (card.isFaceUp ? faceUpGap : faceDownGap),
                                                 zIndex: idx,
                                             }}
-                                            className="sm:scale-100 transform"
+                                            className={`sm:scale-100 transform ${swapSource?.id === card.id ? 'ring-4 ring-purple-400' : ''}`}
                                         />
                                     ))}
                                 </div>
@@ -556,8 +585,59 @@ const App: React.FC = () => {
                     </div>
                 )}
 
+                {/* 入れ替えモードの案内（初心者ズル） */}
+                {isBeginner && swapMode && !swapSource && (
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+                        <div className="bg-purple-500 text-white px-4 py-2 rounded-full shadow-lg text-xs font-black flex items-center gap-2">
+                            <Wand2 className="w-4 h-4" /> 入れ替えたい表向きカードをタップ
+                            <span className="opacity-70">（もう一度🪄で解除）</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* カード入れ替えピッカー（初心者ズル） */}
+                {isBeginner && swapMode && swapSource && (
+                    <div className="fixed inset-0 z-[95] bg-black/30 backdrop-blur-sm flex items-center justify-center p-3" onClick={cancelSwap}>
+                        <div className="bg-white rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl border-4 border-purple-200" onClick={e => e.stopPropagation()}>
+                            <div className="text-center font-black text-purple-600 mb-1">どのカードと入れ替える？</div>
+                            <div className="text-[11px] text-purple-400 text-center mb-3">
+                                選択中: <span className="font-bold">{cardLabel(swapSource.suit, swapSource.rank)}</span> ／ 組札のカードは選べません
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                {SUITS.map(suit => (
+                                    <div key={suit} className="flex gap-0.5">
+                                        {RANKS.map(rank => {
+                                            const inFoundation = state.foundation.some(p => p.some(c => c.suit === suit && c.rank === rank));
+                                            const isSource = swapSource.suit === suit && swapSource.rank === rank;
+                                            const disabled = inFoundation || isSource;
+                                            const red = suit === 'hearts' || suit === 'diamonds';
+                                            return (
+                                                <button
+                                                    key={rank}
+                                                    disabled={disabled}
+                                                    onClick={() => doSwap(suit, rank as Rank)}
+                                                    className={`flex-1 min-w-0 aspect-[2/3] rounded text-[8px] sm:text-[10px] font-bold leading-tight flex flex-col items-center justify-center transition-all active:scale-90 ${disabled ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : (red ? 'bg-pink-50 text-pink-500 hover:bg-pink-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-200')}`}
+                                                >
+                                                    <span>{RANK_LABEL[rank] || rank}</span>
+                                                    <span>{SUIT_SYMBOL[suit]}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                onClick={cancelSwap}
+                                className="mt-3 w-full py-2 bg-purple-100 text-purple-500 font-bold rounded-xl hover:bg-purple-200 transition-all active:scale-95"
+                            >
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Toast / Hint Message */}
-                {!canAutoComplete && !state.hint && state.moves > 5 && (
+                {!canAutoComplete && !swapMode && !state.hint && state.moves > 5 && (
                     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
                         <div className="bg-white/80 backdrop-blur-md border border-pink-100 px-4 py-2 rounded-full shadow-lg text-[10px] sm:text-xs text-pink-400 font-black uppercase tracking-widest flex items-center gap-2">
                             <MousePointer2 className="w-3 h-3" /> Double click to auto move

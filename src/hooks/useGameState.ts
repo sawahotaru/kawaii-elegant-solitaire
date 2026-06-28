@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { GameState, Card, Difficulty } from '../types/game';
+import { GameState, Card, Difficulty, Suit, Rank } from '../types/game';
 import {
     initializeGame,
     canMoveToTableau,
@@ -195,6 +195,38 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal', initialHi
         setState(prev => ({ ...prev, hintsRemaining: limit ?? defaultHints(prev.difficulty) }));
     }, []);
 
+    // 【初心者限定・ズル】盤面の表向きカード(sourceId)と、欲しいカード(targetSuit/Rank)を入れ替える。
+    // 重複が出ないよう2枚の正体(suit/rank/id)を交換し、各スロットの表裏は維持。
+    // 組札(foundation)のカードは対象外＝完成列を壊さない。
+    const swapCards = useCallback((sourceId: string, targetSuit: Suit, targetRank: Rank) => {
+        setState(prev => {
+            if (prev.difficulty !== 'beginner' || prev.gameStatus !== 'playing') return prev;
+
+            const nextTableau = prev.tableau.map(p => p.map(c => ({ ...c })));
+            const nextWaste = prev.waste.map(c => ({ ...c }));
+            const nextStock = prev.stock.map(c => ({ ...c }));
+            // foundation を除く全カード（swap 対象）
+            const pool: Card[] = [...nextTableau.flat(), ...nextWaste, ...nextStock];
+
+            const src = pool.find(c => c.id === sourceId);
+            const tgt = pool.find(c => c.suit === targetSuit && c.rank === targetRank);
+            if (!src || !tgt || src === tgt) return prev; // 対象が組札 等で見つからない/同一なら何もしない
+
+            const tmp = { suit: src.suit, rank: src.rank, id: src.id };
+            src.suit = tgt.suit; src.rank = tgt.rank; src.id = tgt.id;
+            tgt.suit = tmp.suit; tgt.rank = tmp.rank; tgt.id = tmp.id;
+
+            return {
+                ...prev,
+                tableau: nextTableau,
+                waste: nextWaste,
+                stock: nextStock,
+                undoStack: pushToUndo(prev),
+                hint: null,
+            };
+        });
+    }, []);
+
     // オートコンプリート（一括あがり）: 全札が表向きなら勝ち筋を求めて自動再生する。
     const autoComplete = useCallback(() => {
         const prev = stateRef.current;
@@ -235,5 +267,6 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal', initialHi
         restart,
         autoComplete,
         setHintLimit,
+        swapCards,
     };
 };
