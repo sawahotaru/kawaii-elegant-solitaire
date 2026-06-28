@@ -67,12 +67,7 @@
 
 ## 🚀 導入方法
 
-### 方法1: GitHub Pages（公開済み）
-このリポジトリは GitHub Pages ですでに公開済みです。インストール不要、下記URLからすぐに遊べます：
-
-▶ **https://sawahotaru.github.io/kawaii-elegant-solitaire/**
-
-### 方法2: ローカルで開発する
+### 方法1: ローカルで開発する
 **前提**: Node.js v18.0.0 以上を推奨。
 
 ```bash
@@ -83,6 +78,11 @@ npm run dev      # 開発サーバー起動 → http://localhost:5173
 ```
 
 > ⚠️ **フォルダ名に関する注意**: パスに `&` などのシェル特殊文字が含まれると、`npm run dev` / `npm run build` がパス解決に失敗することがあります（特に Windows / PowerShell）。`&` を含まないフォルダ名（例: `kawaii-elegant-solitaire`）に配置してください。
+
+### 方法2: GitHub Pages（公開済み）
+このリポジトリは GitHub Pages ですでに公開済みです。インストール不要、下記URLからすぐに遊べます：
+
+▶ **https://sawahotaru.github.io/kawaii-elegant-solitaire/**
 
 ---
 
