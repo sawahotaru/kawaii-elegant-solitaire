@@ -73,6 +73,20 @@ const App: React.FC = () => {
         if (state.isGameWon) audio.playWin();
     }, [state.isGameWon]);
 
+    // 画面幅でカードの重なり量を切り替える（sm ブレークポイント=640px 未満をコンパクト扱い）。
+    // 固定pxの重なり(-80/-90)はPCのカード高(112px)前提で、モバイルのカード高(80px)では
+    // 重なりすぎてランク/スートが隠れるため、モバイルでは浅い重なりにする。
+    const [isCompact, setIsCompact] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 639px)');
+        const update = () => setIsCompact(mq.matches);
+        update();
+        mq.addEventListener('change', update);
+        return () => mq.removeEventListener('change', update);
+    }, []);
+    const faceUpGap = isCompact ? '-52px' : '-80px';   // 表向きの重なり（モバイルは28px見せる）
+    const faceDownGap = isCompact ? '-62px' : '-90px'; // 伏せ札の重なり（モバイルは18px見せる）
+
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -297,7 +311,7 @@ const App: React.FC = () => {
                         {/* Stock & Waste */}
                         <div className="col-span-3 flex gap-2 sm:gap-6">
                             <div className="relative group cursor-pointer" onClick={() => { audio.playDraw(); drawCards(); }}>
-                                <div className="w-14 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/50 bg-pink-100/30 border-dashed flex items-center justify-center">
+                                <div className="w-12 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/50 bg-pink-100/30 border-dashed flex items-center justify-center">
                                     <RotateCcw className="text-pink-200 w-6 h-6" />
                                 </div>
                                 {state.stock.length > 0 && (
@@ -311,7 +325,7 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="relative">
-                                <div className="w-14 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/30" />
+                                <div className="w-12 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/30" />
                                 {state.waste.length > 0 && (
                                     <Card
                                         key={`${state.waste[state.waste.length - 1].id}-${state.waste[state.waste.length - 1].isFaceUp}`}
@@ -336,7 +350,7 @@ const App: React.FC = () => {
                                         id={`foundation-${i}`}
                                         type="foundation"
                                         index={i}
-                                        className="w-14 sm:w-20 h-20 sm:h-28"
+                                        className="w-12 sm:w-20 h-20 sm:h-28"
                                     >
                                         {pile.length === 0 && (
                                             <div className="absolute inset-0 flex items-center justify-center opacity-10">
@@ -360,7 +374,7 @@ const App: React.FC = () => {
                     </section>
 
                     {/* Bottom Row: Tableau */}
-                    <section className="grid grid-cols-7 gap-1 sm:gap-4 relative z-0">
+                    <section className="grid grid-cols-7 gap-0.5 sm:gap-4 relative z-0">
                         {state.tableau.map((pile, i) => (
                             <DroppablePile
                                 key={i}
@@ -381,7 +395,7 @@ const App: React.FC = () => {
                                             isBeingDragged={activeStack.some(c => c.id === card.id)}
                                             onDoubleClick={() => handleAutoMove(card, 'tableau', i)}
                                             style={{
-                                                marginTop: idx === 0 ? 0 : (card.isFaceUp ? '-80px' : '-90px'),
+                                                marginTop: idx === 0 ? 0 : (card.isFaceUp ? faceUpGap : faceDownGap),
                                                 zIndex: idx,
                                             }}
                                             className="sm:scale-100 transform"
@@ -414,7 +428,7 @@ const App: React.FC = () => {
                                     card={card}
                                     isOverlay
                                     style={{
-                                        marginTop: idx === 0 ? 0 : '-80px',
+                                        marginTop: idx === 0 ? 0 : faceUpGap,
                                         zIndex: 1000 + idx,
                                     }}
                                     className="shadow-2xl opacity-100"
