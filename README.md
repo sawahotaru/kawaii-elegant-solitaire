@@ -90,30 +90,6 @@ npm run dev
 
 ---
 
-## 🏗 本格運用・ビルド (Production Build)
-
-本番環境用に最適化されたファイルを生成するには、以下の手順を実行します。
-
-### 1. ビルドの実行
-```bash
-npm run build
-```
-実行後、プロジェクトルートに `dist` フォルダが生成されます。
-
-### 2. デプロイ
-
-**A. GitHub Pages（自動・推奨／無料・サーバー不要）**
-本リポジトリには `.github/workflows/deploy.yml` が含まれており、`main` ブランチへの push で自動的にビルド＆公開されます。初回のみ以下を設定してください：
-
-1. GitHub にリポジトリを作成して push
-2. リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** に変更
-3. 以後 push するたびに `https://sawahotaru.github.io/kawaii-elegant-solitaire/` が自動更新されます
-
-**B. その他のホスティング（Vercel / Netlify / Cloudflare Pages など）**
-いずれも無料枠で利用できます。ビルド設定は `Build command: npm run build` / `Output directory: dist` を指定するだけです。手動の場合は `npm run build` で生成された `dist` フォルダをアップロードします。
-
----
-
 ## 📂 プロジェクト構造 (Brief)
 
 - `src/components/`: UIコンポーネント（カード、パイル、紙吹雪など）
