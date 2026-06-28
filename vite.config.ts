@@ -8,6 +8,9 @@ export default defineConfig({
     // Netlify, Vercel, Cloudflare Pages, and local `vite preview` without extra config.
     base: './',
     plugins: [react()],
+    server: {
+        allowedHosts: ['host.docker.internal'],
+    },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),

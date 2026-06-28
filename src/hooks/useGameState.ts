@@ -36,7 +36,7 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
     }, [state.gameStatus]);
 
     const pushToUndo = (s: GameState) => {
-        const limit = s.difficulty === 'expert' ? 3 : s.difficulty === 'normal' ? 10 : 999;
+        const limit = s.difficulty === 'expert' ? 3 : s.difficulty === 'normal' ? 100 : 999;
         const newStack = [deepCopyState(s), ...s.undoStack].slice(0, limit);
         return newStack;
     };
@@ -52,9 +52,13 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
             const currentWaste = prev.waste.map(c => ({ ...c }));
 
             if (currentStock.length === 0) {
+                // Recycle: flip the whole waste pile back to stock preserving the
+                // original draw order. waste is [oldest..newest]; drawing reads from
+                // the front, so the new stock must stay [oldest..newest] (NOT reversed)
+                // — otherwise the just-seen top card is immediately re-dealt.
                 return {
                     ...prev,
-                    stock: currentWaste.reverse().map(c => ({ ...c, isFaceUp: false })),
+                    stock: currentWaste.map(c => ({ ...c, isFaceUp: false })),
                     waste: [],
                     undoStack: nextUndo,
                     moves: prev.moves + 1,

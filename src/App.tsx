@@ -20,8 +20,29 @@ import { DroppablePile } from './components/DroppablePile';
 import { canMoveToTableau, canMoveToFoundation } from './utils/gameLogic';
 import { Card as CardType, Difficulty } from './types/game';
 
+const DIFFICULTIES: { key: Difficulty; label: string }[] = [
+    { key: 'beginner', label: '初心者' },
+    { key: 'normal', label: '中級' },
+    { key: 'expert', label: '上級' },
+];
+
 const App: React.FC = () => {
-    const { state, drawCards, moveCards, undo, showHint, restart } = useGameState();
+    // 起動時の難易度は前回選択を復元（初回は初心者）。
+    const [initialDifficulty] = useState<Difficulty>(() => {
+        try {
+            const s = localStorage.getItem('kawaii-difficulty');
+            if (s === 'beginner' || s === 'normal' || s === 'expert') return s;
+        } catch { /* ignore */ }
+        return 'beginner';
+    });
+    const { state, drawCards, moveCards, undo, showHint, restart } = useGameState(initialDifficulty);
+
+    const changeDifficulty = (d: Difficulty) => {
+        if (d === state.difficulty) return;
+        try { localStorage.setItem('kawaii-difficulty', d); } catch { /* ignore */ }
+        restart(d);
+    };
+
     const [activeCardId, setActiveCardId] = useState<string | null>(null);
     const [activeStack, setActiveStack] = useState<CardType[]>([]);
     const [muted, setMuted] = useState<boolean>(() => {
@@ -192,7 +213,18 @@ const App: React.FC = () => {
                         </div>
                         <div>
                             <h1 className="text-sm sm:text-lg font-bold text-pink-600 leading-tight">Kawaii Solitaire</h1>
-                            <div className="text-[10px] sm:text-xs text-pink-400 font-medium uppercase tracking-wider">{state.difficulty} Mode</div>
+                            <div className="flex gap-1 mt-0.5">
+                                {DIFFICULTIES.map(d => (
+                                    <button
+                                        key={d.key}
+                                        onClick={() => changeDifficulty(d.key)}
+                                        title={`難易度: ${d.label}`}
+                                        className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-400 hover:bg-pink-200/70'}`}
+                                    >
+                                        {d.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
