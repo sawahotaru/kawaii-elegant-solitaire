@@ -1,4 +1,4 @@
-import { Card, Suit } from '../types/game';
+import { Card, Suit, Rank } from '../types/game';
 
 /**
  * Klondike 可解判定ソルバー（最良優先DFS, ノード予算上限つき）。
@@ -141,4 +141,75 @@ export const isSolvable = (tableau: Card[][], stock: Card[], nodeBudget: number)
         for (const c of ch) stack.push(c);
     }
     return false;
+};
+
+// ---- オートコンプリート（一括あがり）用: 勝ち筋の盤面列を返す ----
+
+const SUIT_BY_IDX: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
+const dec = (x: number, faceUp = true): Card => ({
+    id: `${SUIT_BY_IDX[suitOf(x)]}-${rankOf(x)}`,
+    suit: SUIT_BY_IDX[suitOf(x)],
+    rank: rankOf(x) as Rank,
+    isFaceUp: faceUp,
+});
+
+export interface Board { tableau: Card[][]; stock: Card[]; waste: Card[]; foundation: Card[][]; }
+
+const buildState = (tableau: Card[][], stock: Card[], waste: Card[], foundation: Card[][]): SState => {
+    const f = [0, 0, 0, 0];
+    foundation.forEach(pile => { if (pile.length) f[SUIT_IDX[pile[pile.length - 1].suit]] = pile[pile.length - 1].rank; });
+    return {
+        piles: tableau.map(col => {
+            const d: number[] = [], u: number[] = [];
+            col.forEach(c => { (c.isFaceUp ? u : d).push(enc(c)); });
+            return { d, u };
+        }),
+        f,
+        stock: stock.map(enc),
+        waste: waste.map(enc),
+    };
+};
+
+const boardOf = (s: SState): Board => ({
+    tableau: s.piles.map(p => [...p.d.map(x => dec(x, false)), ...p.u.map(x => dec(x, true))]),
+    stock: s.stock.map(x => dec(x, false)),
+    waste: s.waste.map(x => dec(x, true)),
+    foundation: [0, 1, 2, 3].map(si => {
+        const arr: Card[] = [];
+        for (let r = 1; r <= s.f[si]; r++) arr.push(dec(si * 13 + (r - 1), true));
+        return arr;
+    }),
+});
+
+/**
+ * 現在局面から勝利までの盤面列（開始局面を含む）を返す。解けなければ null。
+ * オートコンプリートは通常のドロー操作を経ず直接盤面を差し替えるため、draw-1 ベースの
+ * 勝ち筋でも最終的に全組札完成へ到達できればよい。
+ */
+export const solveBoards = (
+    tableau: Card[][], stock: Card[], waste: Card[], foundation: Card[][], nodeBudget = 200000,
+): Board[] | null => {
+    const start = buildState(tableau, stock, waste, foundation);
+    const visited = new Set<string>();
+    const nodes: { s: SState; parent: number }[] = [{ s: start, parent: -1 }];
+    const stack: number[] = [0];
+    let count = 0;
+    while (stack.length && count < nodeBudget) {
+        const idx = stack.pop()!;
+        const s = nodes[idx].s;
+        count++;
+        if (isWon(s)) {
+            const path: SState[] = [];
+            let i = idx;
+            while (i !== -1) { path.push(nodes[i].s); i = nodes[i].parent; }
+            return path.reverse().map(boardOf);
+        }
+        const k = keyS(s);
+        if (visited.has(k)) continue;
+        visited.add(k);
+        const ch = children(s).filter(c => !visited.has(keyS(c)));
+        ch.sort((a, b) => heur(a) - heur(b));
+        for (const c of ch) { nodes.push({ s: c, parent: idx }); stack.push(nodes.length - 1); }
+    }
+    return null;
 };

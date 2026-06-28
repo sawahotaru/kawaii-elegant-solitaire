@@ -9,6 +9,7 @@ import {
     findValidMoves,
     checkWin
 } from '../utils/gameLogic';
+import { solveBoards } from '../utils/solver';
 
 export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
     const [state, setState] = useState<GameState>(() => ({
@@ -22,6 +23,13 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
     }));
 
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    // 最新stateの参照（オートコンプリート起動時に同期的に読むため）
+    const stateRef = useRef(state);
+    useEffect(() => { stateRef.current = state; }, [state]);
+    // オートコンプリート中の再生タイマー
+    const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const stopAuto = () => { if (autoRef.current) { clearInterval(autoRef.current); autoRef.current = null; } };
+    useEffect(() => () => stopAuto(), []);
 
     // タイマー開始
     useEffect(() => {
@@ -165,6 +173,7 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
     }, []);
 
     const restart = useCallback((difficulty?: Difficulty) => {
+        stopAuto();
         const diff = difficulty || state.difficulty;
         setState({
             ...(initializeGame(diff) as GameState),
@@ -177,6 +186,37 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
         });
     }, [state.difficulty]);
 
+    // オートコンプリート（一括あがり）: 全札が表向きなら勝ち筋を求めて自動再生する。
+    const autoComplete = useCallback(() => {
+        const prev = stateRef.current;
+        if (prev.gameStatus !== 'playing' || autoRef.current) return;
+        // 伏せ札が残っていたら実行しない
+        if (prev.tableau.some(pile => pile.some(c => !c.isFaceUp))) return;
+        const boards = solveBoards(prev.tableau, prev.stock, prev.waste, prev.foundation);
+        if (!boards || boards.length < 2) return; // 解けない/既に詰み盤面
+
+        let i = 1;
+        autoRef.current = setInterval(() => {
+            setState(p => {
+                const b = boards[i];
+                const won = i === boards.length - 1;
+                i++;
+                if (i >= boards.length) stopAuto();
+                return {
+                    ...p,
+                    tableau: b.tableau,
+                    stock: b.stock,
+                    waste: b.waste,
+                    foundation: b.foundation,
+                    moves: p.moves + 1,
+                    hint: null,
+                    gameStatus: won ? 'won' : 'playing',
+                    isGameWon: won,
+                };
+            });
+        }, 90);
+    }, []);
+
     return {
         state,
         drawCards,
@@ -184,5 +224,6 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal') => {
         undo,
         showHint,
         restart,
+        autoComplete,
     };
 };

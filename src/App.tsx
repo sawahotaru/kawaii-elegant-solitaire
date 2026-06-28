@@ -11,7 +11,7 @@ import {
     defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX } from 'lucide-react';
+import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX, Sparkles } from 'lucide-react';
 
 import { useGameState } from './hooks/useGameState';
 import { audio } from './utils/audio';
@@ -35,7 +35,7 @@ const App: React.FC = () => {
         } catch { /* ignore */ }
         return 'beginner';
     });
-    const { state, drawCards, moveCards, undo, showHint, restart } = useGameState(initialDifficulty);
+    const { state, drawCards, moveCards, undo, showHint, restart, autoComplete } = useGameState(initialDifficulty);
 
     const changeDifficulty = (d: Difficulty) => {
         if (d === state.difficulty) return;
@@ -191,6 +191,12 @@ const App: React.FC = () => {
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
+
+    // 全札が表向きになったら「一括あがり」を提示（伏せ札ゼロ＝あとは組札へ送るだけ）
+    const canAutoComplete =
+        state.gameStatus === 'playing' &&
+        state.tableau.some(pile => pile.length > 0) &&
+        state.tableau.every(pile => pile.every(c => c.isFaceUp));
 
     return (
         <DndContext
@@ -485,8 +491,20 @@ const App: React.FC = () => {
                     )}
                 </AnimatePresence>
 
+                {/* Auto-complete (一括あがり) */}
+                {canAutoComplete && (
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60]">
+                        <button
+                            onClick={autoComplete}
+                            className="px-6 py-3 bg-pink-500 text-white font-black rounded-full shadow-lg shadow-pink-300 hover:bg-pink-600 transition-all active:scale-95 flex items-center gap-2 animate-pulse"
+                        >
+                            <Sparkles className="w-5 h-5" /> 一括あがり
+                        </button>
+                    </div>
+                )}
+
                 {/* Toast / Hint Message */}
-                {!state.hint && state.moves > 5 && (
+                {!canAutoComplete && !state.hint && state.moves > 5 && (
                     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
                         <div className="bg-white/80 backdrop-blur-md border border-pink-100 px-4 py-2 rounded-full shadow-lg text-[10px] sm:text-xs text-pink-400 font-black uppercase tracking-widest flex items-center gap-2">
                             <MousePointer2 className="w-3 h-3" /> Double click to auto move
