@@ -272,18 +272,7 @@ const App: React.FC = () => {
                             <Award className="text-pink-500 w-6 h-6" />
                         </div>
                         <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-sm sm:text-lg font-bold text-pink-600 leading-tight">Kawaii Solitaire</h1>
-                                {isBeginner && (
-                                    <button
-                                        onClick={() => { setSwapSource(null); setSwapMode(m => !m); }}
-                                        className={`p-1 rounded-full border transition-all active:scale-95 ${swapMode ? 'bg-purple-500 text-white border-purple-300' : 'bg-purple-100/60 text-purple-500 border-purple-100 hover:bg-purple-200/70'}`}
-                                        title="カード入れ替え（初心者ズル）"
-                                    >
-                                        <Wand2 className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
-                            </div>
+                            <h1 className="text-sm sm:text-lg font-bold text-pink-600 leading-tight">Kawaii Solitaire</h1>
                             <div className="flex gap-1 mt-0.5">
                                 {DIFFICULTIES.map(d => (
                                     <button
@@ -585,12 +574,24 @@ const App: React.FC = () => {
                     </div>
                 )}
 
-                {/* 入れ替えモードの案内（初心者ズル） */}
+                {/* 神の手（初心者限定）— 目立つフローティングボタン */}
+                {isBeginner && (
+                    <button
+                        onClick={() => { setSwapSource(null); setSwapMode(m => !m); }}
+                        className={`fixed bottom-6 right-4 z-[70] px-4 py-3 rounded-full shadow-xl font-black flex items-center gap-1.5 border-2 transition-all active:scale-95 ${swapMode
+                            ? 'bg-purple-600 text-white border-white/70 ring-4 ring-purple-300'
+                            : 'bg-gradient-to-br from-amber-300 via-pink-400 to-purple-500 text-white border-white/70 shadow-purple-300/50 animate-pulse hover:scale-105'}`}
+                        title="神の手（初心者だけのズル）"
+                    >
+                        <Wand2 className="w-5 h-5" /> {swapMode ? 'やめる' : '神の手'}
+                    </button>
+                )}
+
+                {/* 神の手モードの案内 */}
                 {isBeginner && swapMode && !swapSource && (
-                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
-                        <div className="bg-purple-500 text-white px-4 py-2 rounded-full shadow-lg text-xs font-black flex items-center gap-2">
-                            <Wand2 className="w-4 h-4" /> 入れ替えたい表向きカードをタップ
-                            <span className="opacity-70">（もう一度🪄で解除）</span>
+                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+                        <div className="bg-purple-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-black flex items-center gap-2">
+                            <Wand2 className="w-4 h-4" /> 変えたい表向きカードをタップ ✨
                         </div>
                     </div>
                 )}
@@ -599,7 +600,9 @@ const App: React.FC = () => {
                 {isBeginner && swapMode && swapSource && (
                     <div className="fixed inset-0 z-[95] bg-black/30 backdrop-blur-sm flex items-center justify-center p-3" onClick={cancelSwap}>
                         <div className="bg-white rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl border-4 border-purple-200" onClick={e => e.stopPropagation()}>
-                            <div className="text-center font-black text-purple-600 mb-1">どのカードと入れ替える？</div>
+                            <div className="text-center font-black text-purple-600 mb-1 flex items-center justify-center gap-1">
+                                <Wand2 className="w-4 h-4" /> 神の手 — どのカードにする？
+                            </div>
                             <div className="text-[11px] text-purple-400 text-center mb-3">
                                 選択中: <span className="font-bold">{cardLabel(swapSource.suit, swapSource.rank)}</span> ／ 組札のカードは選べません
                             </div>
