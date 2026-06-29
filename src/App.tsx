@@ -11,7 +11,7 @@ import {
     defaultDropAnimationSideEffects
 } from '@dnd-kit/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX, Sparkles, Wand2 } from 'lucide-react';
+import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX, Sparkles, Wand2, Menu, X } from 'lucide-react';
 
 import { useGameState } from './hooks/useGameState';
 import { audio } from './utils/audio';
@@ -82,6 +82,9 @@ const App: React.FC = () => {
         try { localStorage.setItem('kawaii-hintlimit', k); } catch { /* ignore */ }
         setHintLimit(hintValue(k));
     };
+
+    // スマホ用の設定ドロワー（ハンバーガーメニュー）の開閉。難易度/ヒント上限/サウンドを集約。
+    const [menuOpen, setMenuOpen] = useState(false);
 
     const [activeCardId, setActiveCardId] = useState<string | null>(null);
     const [activeStack, setActiveStack] = useState<CardType[]>([]);
@@ -266,14 +269,23 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-game-bg text-gray-800 font-sans selection:bg-pink-200">
 
                 {/* Header HUD */}
-                <header className="fixed top-0 inset-x-0 h-[92px] sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-2 sm:px-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2 sm:gap-4">
+                <header className="fixed top-0 inset-x-0 h-16 sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-2 sm:px-4 flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                        {/* スマホ用ハンバーガー（難易度/ヒント/サウンドをドロワーへ集約） */}
+                        <button
+                            onClick={() => setMenuOpen(true)}
+                            className="sm:hidden p-2 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 shrink-0"
+                            title="メニュー"
+                            aria-label="メニューを開く"
+                        >
+                            <Menu className="w-5 h-5" />
+                        </button>
                         <div className="bg-pink-100/50 p-2 rounded-xl hidden sm:block">
                             <Award className="text-pink-500 w-6 h-6" />
                         </div>
-                        <div>
-                            <h1 className="text-sm sm:text-lg font-bold text-pink-600 leading-tight">Kawaii Solitaire</h1>
-                            <div className="flex gap-1 mt-0.5">
+                        <div className="min-w-0">
+                            <h1 className="hidden sm:block text-sm sm:text-lg font-bold text-pink-600 leading-tight truncate">Kawaii Solitaire</h1>
+                            <div className="hidden sm:flex gap-1 mt-0.5">
                                 {DIFFICULTIES.map(d => (
                                     <button
                                         key={d.key}
@@ -285,7 +297,7 @@ const App: React.FC = () => {
                                     </button>
                                 ))}
                             </div>
-                            <div className="flex gap-1 mt-0.5 items-center">
+                            <div className="hidden sm:flex gap-1 mt-0.5 items-center">
                                 <span className="text-[9px] sm:text-[10px] text-pink-300 font-bold uppercase mr-0.5 flex items-center gap-0.5">
                                     <Lightbulb className="w-2.5 h-2.5" />
                                 </span>
@@ -303,7 +315,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 sm:gap-8">
+                    <div className="flex items-center gap-2 sm:gap-8 shrink-0">
                         <div className="flex flex-col items-center">
                             <span className="text-[10px] sm:text-xs text-pink-400 font-bold uppercase">Score</span>
                             <span className="text-sm sm:text-xl font-black text-pink-600 tabular-nums">{state.score}</span>
@@ -320,10 +332,10 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex gap-1 sm:gap-2">
+                    <div className="flex gap-1 sm:gap-2 shrink-0">
                         <button
                             onClick={() => setMuted(m => !m)}
-                            className="p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            className="hidden sm:block p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
                             title={muted ? 'Unmute' : 'Mute'}
                         >
                             {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -358,15 +370,97 @@ const App: React.FC = () => {
                     </div>
                 </header>
 
+                {/* スマホ用 設定ドロワー（ハンバーガーメニュー） */}
+                <AnimatePresence>
+                    {menuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="sm:hidden fixed inset-0 z-[90] flex"
+                            onClick={() => setMenuOpen(false)}
+                        >
+                            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+                            <motion.div
+                                initial={{ x: '-100%' }}
+                                animate={{ x: 0 }}
+                                exit={{ x: '-100%' }}
+                                transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+                                className="relative w-72 max-w-[80vw] h-full bg-white shadow-2xl p-5 flex flex-col gap-6 overflow-y-auto"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-lg font-black text-pink-600 flex items-center gap-2">
+                                        <Award className="w-5 h-5" /> Kawaii Solitaire
+                                    </h2>
+                                    <button
+                                        onClick={() => setMenuOpen(false)}
+                                        className="p-2 text-pink-500 rounded-lg hover:bg-pink-50 active:scale-95"
+                                        aria-label="閉じる"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* 難易度 */}
+                                <div>
+                                    <div className="text-xs font-black text-pink-400 uppercase mb-2">難易度</div>
+                                    <div className="flex gap-2">
+                                        {DIFFICULTIES.map(d => (
+                                            <button
+                                                key={d.key}
+                                                onClick={() => { changeDifficulty(d.key); setMenuOpen(false); }}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-500 hover:bg-pink-200/70'}`}
+                                            >
+                                                {d.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* ヒント上限 */}
+                                <div>
+                                    <div className="text-xs font-black text-pink-400 uppercase mb-2 flex items-center gap-1">
+                                        <Lightbulb className="w-3.5 h-3.5" /> ヒント上限
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                        {HINT_OPTIONS.map(o => (
+                                            <button
+                                                key={o.key}
+                                                onClick={() => changeHintLimit(o.key)}
+                                                title={`ヒント上限: ${o.key === 'auto' ? '難易度準拠' : o.key === 'inf' ? '無制限' : o.label}`}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow' : 'bg-pink-100/50 text-pink-500 hover:bg-pink-200/60'}`}
+                                            >
+                                                {o.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* サウンド */}
+                                <div>
+                                    <div className="text-xs font-black text-pink-400 uppercase mb-2">サウンド</div>
+                                    <button
+                                        onClick={() => setMuted(m => !m)}
+                                        className="w-full py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 bg-pink-100/60 text-pink-500 hover:bg-pink-200/70"
+                                    >
+                                        {muted ? <><VolumeX className="w-4 h-4" /> ミュート中</> : <><Volume2 className="w-4 h-4" /> オン</>}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Game Layout */}
-                <main className="pt-24 sm:pt-32 pb-8 px-4 max-w-5xl mx-auto flex flex-col gap-6 sm:gap-12">
+                <main className="pt-20 sm:pt-32 pb-8 px-2 sm:px-4 max-w-5xl mx-auto flex flex-col gap-6 sm:gap-12">
 
                     {/* Top Row: Stock & Foundation */}
-                    <section className="grid grid-cols-7 gap-2 sm:gap-4">
+                    <section className="flex justify-between gap-2 sm:gap-4">
                         {/* Stock & Waste */}
-                        <div className="col-span-3 flex gap-2 sm:gap-6">
+                        <div className="flex gap-2 sm:gap-6">
                             <div className="relative group cursor-pointer" onClick={() => { audio.playDraw(); drawCards(); }}>
-                                <div className="w-12 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/50 bg-pink-100/30 border-dashed flex items-center justify-center">
+                                <div className="w-11 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/50 bg-pink-100/30 border-dashed flex items-center justify-center">
                                     <RotateCcw className="text-pink-200 w-6 h-6" />
                                 </div>
                                 {state.stock.length > 0 && (
@@ -380,7 +474,7 @@ const App: React.FC = () => {
                             </div>
 
                             <div className="relative">
-                                <div className="w-12 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/30" />
+                                <div className="w-11 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/30" />
                                 {state.waste.length > 0 && (
                                     <Card
                                         key={`${state.waste[state.waste.length - 1].id}-${state.waste[state.waste.length - 1].isFaceUp}`}
@@ -396,17 +490,15 @@ const App: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="col-span-1" />
-
                         {/* Foundation */}
-                        <div className="col-span-3 flex justify-end gap-1 sm:gap-4">
+                        <div className="flex gap-1 sm:gap-4">
                             {state.foundation.map((pile, i) => (
                                 <div key={i} className="relative">
                                     <DroppablePile
                                         id={`foundation-${i}`}
                                         type="foundation"
                                         index={i}
-                                        className="w-12 sm:w-20 h-20 sm:h-28"
+                                        className="w-11 sm:w-20 h-20 sm:h-28"
                                     >
                                         {pile.length === 0 && (
                                             <div className="absolute inset-0 flex items-center justify-center opacity-10">

@@ -63,7 +63,7 @@ export const Card: React.FC<CardProps> = ({
             <motion.div
                 transition={springTransition}
                 onClick={onClick}
-                className={`w-12 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-white shadow-md cursor-pointer bg-gradient-to-br from-pink-200 to-lavender-200 relative overflow-hidden ${className}`}
+                className={`w-11 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-white shadow-md cursor-pointer bg-gradient-to-br from-pink-200 to-lavender-200 relative overflow-hidden ${className}`}
                 style={{ ...style, ...dndStyle }}
             >
                 <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_white_1px,_transparent_1px)] bg-[size:10px_10px]" />
@@ -80,7 +80,7 @@ export const Card: React.FC<CardProps> = ({
             onDoubleClick={onDoubleClick}
             onClick={onClick}
             className={`
-        w-12 sm:w-20 h-20 sm:h-28 rounded-xl border-[1px] border-gray-100 shadow-md cursor-grab active:cursor-grabbing
+        w-11 sm:w-20 h-20 sm:h-28 rounded-xl border-[1px] border-gray-100 shadow-md cursor-grab active:cursor-grabbing
         bg-white/90 backdrop-blur-sm flex flex-col items-center justify-between p-1 sm:p-2
         ${isRed ? 'text-pink-500' : 'text-gray-700'}
         ${isHinted ? 'ring-4 ring-yellow-300 ring-opacity-70 animate-pulse' : ''}
