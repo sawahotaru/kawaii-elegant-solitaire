@@ -1,0 +1,748 @@
+import React, { useState, useEffect } from 'react';
+import {
+    DndContext,
+    DragOverlay,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragStartEvent,
+    DragEndEvent,
+    closestCorners,
+    defaultDropAnimationSideEffects
+} from '@dnd-kit/core';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Undo2, Lightbulb, RotateCcw, Award, Clock, MousePointer2, Volume2, VolumeX, Sparkles, Wand2, Menu, X } from 'lucide-react';
+
+import { useGameState } from './hooks/useGameState';
+import { audio } from './utils/audio';
+import { Card } from './components/Card';
+import { DroppablePile } from './components/DroppablePile';
+import { canMoveToTableau, canMoveToFoundation, SUITS, RANKS } from './utils/gameLogic';
+import { Card as CardType, Difficulty, Suit, Rank } from './types/game';
+
+const SUIT_SYMBOL: Record<Suit, string> = { hearts: '♥', diamonds: '♦', clubs: '♣', spades: '♠' };
+const RANK_LABEL: Record<number, string> = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+const cardLabel = (suit: Suit, rank: Rank) => `${RANK_LABEL[rank] || rank}${SUIT_SYMBOL[suit]}`;
+
+const DIFFICULTIES: { key: Difficulty; label: string }[] = [
+    { key: 'beginner', label: '初心者' },
+    { key: 'normal', label: '中級' },
+    { key: 'expert', label: '上級' },
+];
+
+const HINT_OPTIONS: { key: string; label: string }[] = [
+    { key: 'auto', label: '自動' },
+    { key: '3', label: '3' },
+    { key: '5', label: '5' },
+    { key: '10', label: '10' },
+    { key: 'inf', label: '∞' },
+];
+
+const App: React.FC = () => {
+    // 起動時の難易度は前回選択を復元（初回は初心者）。
+    const [initialDifficulty] = useState<Difficulty>(() => {
+        try {
+            const s = localStorage.getItem('kawaii-difficulty');
+            if (s === 'beginner' || s === 'normal' || s === 'expert') return s;
+        } catch { /* ignore */ }
+        return 'beginner';
+    });
+    // ヒント上限の設定（'auto'=難易度準拠 / '3' / '5' / '10' / 'inf'=無制限）。前回選択を復元。
+    const [hintKey, setHintKey] = useState<string>(() => {
+        try {
+            const s = localStorage.getItem('kawaii-hintlimit');
+            if (s && ['auto', '3', '5', '10', 'inf'].includes(s)) return s;
+        } catch { /* ignore */ }
+        return 'auto';
+    });
+    const hintValue = (k: string): number | null => (k === 'auto' ? null : k === 'inf' ? 999 : parseInt(k, 10));
+
+    const { state, drawCards, moveCards, undo, showHint, restart, autoComplete, setHintLimit, swapCards } = useGameState(initialDifficulty, hintValue(hintKey));
+
+    // 【初心者限定】カード入れ替え（ズル）モード
+    const [swapMode, setSwapMode] = useState(false);
+    const [swapSource, setSwapSource] = useState<CardType | null>(null);
+    const isBeginner = state.difficulty === 'beginner';
+    const cancelSwap = () => { setSwapMode(false); setSwapSource(null); };
+    const pickSwapSource = (card: CardType) => { if (swapMode && card.isFaceUp) setSwapSource(card); };
+    const doSwap = (suit: Suit, rank: Rank) => {
+        if (swapSource) swapCards(swapSource.id, suit, rank);
+        cancelSwap();
+    };
+
+    const changeDifficulty = (d: Difficulty) => {
+        if (d === state.difficulty) return;
+        cancelSwap();
+        try { localStorage.setItem('kawaii-difficulty', d); } catch { /* ignore */ }
+        restart(d);
+    };
+
+    const changeHintLimit = (k: string) => {
+        setHintKey(k);
+        try { localStorage.setItem('kawaii-hintlimit', k); } catch { /* ignore */ }
+        setHintLimit(hintValue(k));
+    };
+
+    // スマホ用の設定ドロワー（ハンバーガーメニュー）の開閉。難易度/ヒント上限/サウンドを集約。
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    const [activeCardId, setActiveCardId] = useState<string | null>(null);
+    const [activeStack, setActiveStack] = useState<CardType[]>([]);
+    const [muted, setMuted] = useState<boolean>(() => {
+        // Music/sound is muted by default; only unmuted if the user previously opted in.
+        // The key is versioned (-v2) so stale '0' values written by older builds, which
+        // always autosaved an unmuted preference, no longer suppress the muted default.
+        try {
+            const stored = localStorage.getItem('kawaii-muted-v2');
+            return stored === null ? true : stored === '1';
+        } catch { return true; }
+    });
+
+    // Sync mute state to the audio engine and persist the preference.
+    useEffect(() => {
+        audio.setMuted(muted);
+        try { localStorage.setItem('kawaii-muted-v2', muted ? '1' : '0'); } catch { /* ignore */ }
+    }, [muted]);
+
+    // Unlock audio + start BGM on the first user gesture (autoplay policy).
+    useEffect(() => {
+        const unlock = () => { audio.resume(); window.removeEventListener('pointerdown', unlock); };
+        window.addEventListener('pointerdown', unlock);
+        return () => window.removeEventListener('pointerdown', unlock);
+    }, []);
+
+    // Victory fanfare.
+    useEffect(() => {
+        if (state.isGameWon) audio.playWin();
+    }, [state.isGameWon]);
+
+    // 画面幅でカードの重なり量を切り替える（sm ブレークポイント=640px 未満をコンパクト扱い）。
+    // 固定pxの重なり(-80/-90)はPCのカード高(112px)前提で、モバイルのカード高(80px)では
+    // 重なりすぎてランク/スートが隠れるため、モバイルでは浅い重なりにする。
+    const [isCompact, setIsCompact] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 639px)');
+        const update = () => setIsCompact(mq.matches);
+        update();
+        mq.addEventListener('change', update);
+        return () => mq.removeEventListener('change', update);
+    }, []);
+    const faceUpGap = isCompact ? '-52px' : '-80px';   // 表向きの重なり（モバイルは28px見せる）
+    const faceDownGap = isCompact ? '-62px' : '-90px'; // 伏せ札の重なり（モバイルは18px見せる）
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5,
+            },
+        })
+    );
+
+    const handleDragStart = (event: DragStartEvent) => {
+        const { active } = event;
+        const card = active.data.current?.card as CardType;
+        const sourceType = active.data.current?.sourceType;
+        const sourceIndex = active.data.current?.sourceIndex;
+
+        if (!card) return;
+
+        setActiveCardId(card.id);
+
+        if (sourceType === 'tableau' && sourceIndex !== undefined) {
+            const pile = state.tableau[sourceIndex];
+            const index = pile.findIndex(c => c.id === card.id);
+            if (index !== -1) {
+                setActiveStack(pile.slice(index));
+            } else {
+                // Fallback: This shouldn't happen, but prevent crash
+                setActiveStack([card]);
+            }
+        } else {
+            setActiveStack([card]);
+        }
+    };
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { over, active } = event;
+
+        // Reset state immediately but keep reference for logic
+        const currentActiveStack = [...activeStack];
+        setActiveCardId(null);
+        setActiveStack([]);
+
+        if (!over) return;
+
+        const sourceData = active.data.current;
+        const targetData = over.data.current;
+        const card = sourceData?.card as CardType;
+
+        if (!sourceData || !targetData || !card) return;
+
+        let isValid = false;
+        if (targetData.type === 'tableau') {
+            const targetPile = state.tableau[targetData.index];
+            const targetCard = targetPile.length > 0 ? targetPile[targetPile.length - 1] : undefined;
+            isValid = canMoveToTableau(card, targetCard);
+        } else if (targetData.type === 'foundation') {
+            const targetPile = state.foundation[targetData.index];
+            // Stack dragging is only allowed for a single card to foundation
+            if (currentActiveStack.length === 1 && canMoveToFoundation(card, targetPile)) {
+                isValid = true;
+            }
+        }
+
+        if (isValid) {
+            moveCards(
+                sourceData.sourceType,
+                sourceData.sourceIndex,
+                currentActiveStack.map(c => c.id),
+                targetData.type,
+                targetData.index
+            );
+            if (targetData.type === 'foundation') audio.playFoundation();
+            else audio.playMove();
+        } else {
+            audio.playInvalid();
+        }
+    };
+
+    const handleAutoMove = (card: CardType, sourceType: string, sourceIndex?: number) => {
+        // Prevent auto-move if dragging is active
+        if (activeCardId) return;
+
+        // 判定用：そのカードがその山の「一番上（露出している）」カードかどうか
+        const isTopCard = (() => {
+            if (sourceType === 'waste') return true;
+            if (sourceType === 'tableau' && sourceIndex !== undefined) {
+                const pile = state.tableau[sourceIndex];
+                return pile[pile.length - 1].id === card.id;
+            }
+            return false;
+        })();
+
+        // 1. 組札（Foundation）への自動移動：一番上のカードのみ許可
+        if (isTopCard) {
+            for (let i = 0; i < 4; i++) {
+                if (canMoveToFoundation(card, state.foundation[i])) {
+                    moveCards(sourceType, sourceIndex, [card.id], 'foundation', i);
+                    audio.playFoundation();
+                    return;
+                }
+            }
+        }
+
+        // 2. 場札（Tableau）への自動移動：こちらは連番（スタック）での移動を許可
+        for (let i = 0; i < 7; i++) {
+            if (sourceType === 'tableau' && sourceIndex === i) continue;
+            const targetCard = state.tableau[i].length > 0 ? state.tableau[i][state.tableau[i].length - 1] : undefined;
+            if (canMoveToTableau(card, targetCard)) {
+                moveCards(sourceType, sourceIndex, [card.id], 'tableau', i);
+                audio.playMove();
+                return;
+            }
+        }
+    };
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // 全札が表向きになったら「一括あがり」を提示（伏せ札ゼロ＝あとは組札へ送るだけ）
+    const canAutoComplete =
+        state.gameStatus === 'playing' &&
+        state.tableau.some(pile => pile.length > 0) &&
+        state.tableau.every(pile => pile.every(c => c.isFaceUp));
+
+    return (
+        <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => {
+                setActiveCardId(null);
+                setActiveStack([]);
+            }}
+            collisionDetection={closestCorners}
+        >
+            <div className="min-h-screen bg-game-bg text-gray-800 font-sans selection:bg-pink-200">
+
+                {/* Header HUD */}
+                <header className="fixed top-0 inset-x-0 h-16 sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-2 sm:px-4 flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+                        {/* スマホ用ハンバーガー（難易度/ヒント/サウンドをドロワーへ集約） */}
+                        <button
+                            onClick={() => setMenuOpen(true)}
+                            className="sm:hidden p-2 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 shrink-0"
+                            title="メニュー"
+                            aria-label="メニューを開く"
+                        >
+                            <Menu className="w-5 h-5" />
+                        </button>
+                        <div className="bg-pink-100/50 p-2 rounded-xl hidden sm:block">
+                            <Award className="text-pink-500 w-6 h-6" />
+                        </div>
+                        <div className="min-w-0">
+                            <h1 className="hidden sm:block text-sm sm:text-lg font-bold text-pink-600 leading-tight truncate">Kawaii Solitaire</h1>
+                            <div className="hidden sm:flex gap-1 mt-0.5">
+                                {DIFFICULTIES.map(d => (
+                                    <button
+                                        key={d.key}
+                                        onClick={() => changeDifficulty(d.key)}
+                                        title={`難易度: ${d.label}`}
+                                        className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-400 hover:bg-pink-200/70'}`}
+                                    >
+                                        {d.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="hidden sm:flex gap-1 mt-0.5 items-center">
+                                <span className="text-[9px] sm:text-[10px] text-pink-300 font-bold uppercase mr-0.5 flex items-center gap-0.5">
+                                    <Lightbulb className="w-2.5 h-2.5" />
+                                </span>
+                                {HINT_OPTIONS.map(o => (
+                                    <button
+                                        key={o.key}
+                                        onClick={() => changeHintLimit(o.key)}
+                                        title={`ヒント上限: ${o.key === 'auto' ? '難易度準拠' : o.key === 'inf' ? '無制限' : o.label}`}
+                                        className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow' : 'bg-pink-100/50 text-pink-400 hover:bg-pink-200/60'}`}
+                                    >
+                                        {o.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 sm:gap-8 shrink-0">
+                        <div className="flex flex-col items-center">
+                            <span className="text-[10px] sm:text-xs text-pink-400 font-bold uppercase">Score</span>
+                            <span className="text-sm sm:text-xl font-black text-pink-600 tabular-nums">{state.score}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[10px] sm:text-xs text-pink-400 font-bold uppercase">Time</span>
+                            <span className="text-sm sm:text-xl font-black text-pink-600 tabular-nums flex items-center gap-1">
+                                <Clock className="w-3 h-3 sm:w-4 sm:h-4" /> {formatTime(state.time)}
+                            </span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                            <span className="text-[10px] sm:text-xs text-pink-400 font-bold uppercase">Moves</span>
+                            <span className="text-sm sm:text-xl font-black text-pink-600 tabular-nums">{state.moves}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-1 sm:gap-2 shrink-0">
+                        <button
+                            onClick={() => setMuted(m => !m)}
+                            className="hidden sm:block p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            title={muted ? 'Unmute' : 'Mute'}
+                        >
+                            {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+                        </button>
+                        <button
+                            onClick={() => { audio.playUndo(); undo(); }}
+                            className="p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            title="Undo"
+                        >
+                            <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                        <button
+                            onClick={() => { audio.playHint(); showHint(); }}
+                            disabled={state.hintsRemaining <= 0}
+                            className={`p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 flex flex-col items-center justify-center relative ${state.hintsRemaining <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pink-50'}`}
+                            title="Hint"
+                        >
+                            <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
+                            {state.hintsRemaining < 999 && (
+                                <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                                    {state.hintsRemaining}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => restart()}
+                            className="p-1.5 sm:p-3 bg-pink-500 text-white rounded-xl hover:bg-pink-600 shadow-lg shadow-pink-200 transition-all active:scale-95"
+                            title="New Game"
+                        >
+                            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
+                    </div>
+                </header>
+
+                {/* スマホ用 設定ドロワー（ハンバーガーメニュー） */}
+                <AnimatePresence>
+                    {menuOpen && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="sm:hidden fixed inset-0 z-[90] flex"
+                            onClick={() => setMenuOpen(false)}
+                        >
+                            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+                            <motion.div
+                                initial={{ x: '-100%' }}
+                                animate={{ x: 0 }}
+                                exit={{ x: '-100%' }}
+                                transition={{ type: 'spring', stiffness: 400, damping: 40 }}
+                                className="relative w-72 max-w-[80vw] h-full bg-white shadow-2xl p-5 flex flex-col gap-6 overflow-y-auto"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-lg font-black text-pink-600 flex items-center gap-2">
+                                        <Award className="w-5 h-5" /> Kawaii Solitaire
+                                    </h2>
+                                    <button
+                                        onClick={() => setMenuOpen(false)}
+                                        className="p-2 text-pink-500 rounded-lg hover:bg-pink-50 active:scale-95"
+                                        aria-label="閉じる"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* 難易度 */}
+                                <div>
+                                    <div className="text-xs font-black text-pink-400 uppercase mb-2">難易度</div>
+                                    <div className="flex gap-2">
+                                        {DIFFICULTIES.map(d => (
+                                            <button
+                                                key={d.key}
+                                                onClick={() => { changeDifficulty(d.key); setMenuOpen(false); }}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-500 hover:bg-pink-200/70'}`}
+                                            >
+                                                {d.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* ヒント上限 */}
+                                <div>
+                                    <div className="text-xs font-black text-pink-400 uppercase mb-2 flex items-center gap-1">
+                                        <Lightbulb className="w-3.5 h-3.5" /> ヒント上限
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                        {HINT_OPTIONS.map(o => (
+                                            <button
+                                                key={o.key}
+                                                onClick={() => changeHintLimit(o.key)}
+                                                title={`ヒント上限: ${o.key === 'auto' ? '難易度準拠' : o.key === 'inf' ? '無制限' : o.label}`}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow' : 'bg-pink-100/50 text-pink-500 hover:bg-pink-200/60'}`}
+                                            >
+                                                {o.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* サウンド */}
+                                <div>
+                                    <div className="text-xs font-black text-pink-400 uppercase mb-2">サウンド</div>
+                                    <button
+                                        onClick={() => setMuted(m => !m)}
+                                        className="w-full py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 bg-pink-100/60 text-pink-500 hover:bg-pink-200/70"
+                                    >
+                                        {muted ? <><VolumeX className="w-4 h-4" /> ミュート中</> : <><Volume2 className="w-4 h-4" /> オン</>}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Game Layout */}
+                <main className="pt-20 sm:pt-32 pb-8 px-2 sm:px-4 max-w-5xl mx-auto flex flex-col gap-6 sm:gap-12">
+
+                    {/* Top Row: Stock & Foundation */}
+                    <section className="flex justify-between gap-2 sm:gap-4">
+                        {/* Stock & Waste */}
+                        <div className="flex gap-2 sm:gap-6">
+                            <div className="relative group cursor-pointer" onClick={() => { audio.playDraw(); drawCards(); }}>
+                                <div className="w-11 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/50 bg-pink-100/30 border-dashed flex items-center justify-center">
+                                    <RotateCcw className="text-pink-200 w-6 h-6" />
+                                </div>
+                                {state.stock.length > 0 && (
+                                    <Card
+                                        key="stock-card-top"
+                                        card={{ ...state.stock[0], id: 'stock-card' }}
+                                        className="absolute top-0 left-0"
+                                    />
+                                )}
+                                <div className="absolute -bottom-6 left-0 right-0 text-[10px] text-center text-pink-300 font-bold uppercase tracking-tighter">Stock</div>
+                            </div>
+
+                            <div className="relative">
+                                <div className="w-11 sm:w-20 h-20 sm:h-28 rounded-xl border-2 border-pink-200/30" />
+                                {state.waste.length > 0 && (
+                                    <Card
+                                        key={`${state.waste[state.waste.length - 1].id}-${state.waste[state.waste.length - 1].isFaceUp}`}
+                                        card={state.waste[state.waste.length - 1]}
+                                        sourceType="waste"
+                                        onDoubleClick={swapMode ? undefined : () => handleAutoMove(state.waste[state.waste.length - 1], 'waste')}
+                                        onClick={swapMode ? () => pickSwapSource(state.waste[state.waste.length - 1]) : undefined}
+                                        isHinted={state.hint?.from === state.waste[state.waste.length - 1].id}
+                                        className={`absolute top-0 left-0 ${swapSource?.id === state.waste[state.waste.length - 1].id ? 'ring-4 ring-purple-400' : ''}`}
+                                    />
+                                )}
+                                <div className="absolute -bottom-6 left-0 right-0 text-[10px] text-center text-pink-300 font-bold uppercase tracking-tighter">Waste</div>
+                            </div>
+                        </div>
+
+                        {/* Foundation */}
+                        <div className="flex gap-1 sm:gap-4">
+                            {state.foundation.map((pile, i) => (
+                                <div key={i} className="relative">
+                                    <DroppablePile
+                                        id={`foundation-${i}`}
+                                        type="foundation"
+                                        index={i}
+                                        className="w-11 sm:w-20 h-20 sm:h-28"
+                                    >
+                                        {pile.length === 0 && (
+                                            <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                                                <Award className="w-8 h-8" />
+                                            </div>
+                                        )}
+                                        {pile.map((card, idx) => (
+                                            <Card
+                                                key={card.id}
+                                                card={card}
+                                                sourceType="foundation"
+                                                sourceIndex={i}
+                                                className="absolute top-0 left-0"
+                                            />
+                                        ))}
+                                    </DroppablePile>
+                                    <div className="absolute -bottom-6 left-0 right-0 text-[10px] text-center text-pink-300 font-bold uppercase tracking-tighter">Suit {i + 1}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Bottom Row: Tableau */}
+                    <section className="grid grid-cols-7 gap-0.5 sm:gap-4 relative z-0">
+                        {state.tableau.map((pile, i) => (
+                            <DroppablePile
+                                key={i}
+                                id={`tableau-${i}`}
+                                type="tableau"
+                                index={i}
+                                className="min-h-[300px] w-full bg-white/5 rounded-xl border-dashed border-2 border-pink-100/20 relative"
+                                style={{ zIndex: 50 - i }}
+                            >
+                                <div className="flex flex-col items-center">
+                                    {pile.map((card, idx) => (
+                                        <Card
+                                            key={`${card.id}-${card.isFaceUp}`}
+                                            card={card}
+                                            sourceType="tableau"
+                                            sourceIndex={i}
+                                            isHinted={state.hint?.from === card.id || state.hint?.to === `tableau-${i}`}
+                                            isBeingDragged={activeStack.some(c => c.id === card.id)}
+                                            onDoubleClick={swapMode ? undefined : () => handleAutoMove(card, 'tableau', i)}
+                                            onClick={swapMode && card.isFaceUp ? () => pickSwapSource(card) : undefined}
+                                            style={{
+                                                marginTop: idx === 0 ? 0 : (card.isFaceUp ? faceUpGap : faceDownGap),
+                                                zIndex: idx,
+                                            }}
+                                            className={`sm:scale-100 transform ${swapSource?.id === card.id ? 'ring-4 ring-purple-400' : ''}`}
+                                        />
+                                    ))}
+                                </div>
+                            </DroppablePile>
+                        ))}
+                    </section>
+                </main>
+
+                {/* Drag Overlay */}
+                <DragOverlay
+                    className="pointer-events-none"
+                    dropAnimation={{
+                        sideEffects: defaultDropAnimationSideEffects({
+                            styles: {
+                                active: {
+                                    opacity: '0.5',
+                                },
+                            },
+                        }),
+                    }}
+                >
+                    {activeCardId && activeStack.length > 0 && (
+                        <div className="flex flex-col items-center">
+                            {activeStack.map((card, idx) => (
+                                <Card
+                                    key={card.id}
+                                    card={card}
+                                    isOverlay
+                                    style={{
+                                        marginTop: idx === 0 ? 0 : faceUpGap,
+                                        zIndex: 1000 + idx,
+                                    }}
+                                    className="shadow-2xl opacity-100"
+                                />
+                            ))}
+                        </div>
+                    )}
+                </DragOverlay>
+
+                {/* Victory Screen */}
+                <AnimatePresence>
+                    {state.isGameWon && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[100] bg-pink-500/80 backdrop-blur-lg flex flex-col items-center justify-center p-8 text-white overflow-hidden"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.8, y: 50 }}
+                                animate={{ scale: 1, y: 0 }}
+                                className="bg-white p-12 rounded-[3rem] shadow-2xl flex flex-col items-center text-center gap-6 max-w-md border-8 border-pink-200"
+                            >
+                                <div className="w-24 h-24 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                                    <Award className="w-12 h-12 text-pink-500 animate-bounce" />
+                                </div>
+                                <h2 className="text-4xl font-black text-pink-500">Perfect!</h2>
+                                <p className="text-pink-400 font-bold mb-4">You solved the solitaire with elegance.</p>
+
+                                <div className="grid grid-cols-2 gap-4 w-full">
+                                    <div className="bg-pink-50 p-4 rounded-3xl">
+                                        <div className="text-pink-300 text-xs font-black uppercase">Score</div>
+                                        <div className="text-pink-500 text-2xl font-black">{state.score}</div>
+                                    </div>
+                                    <div className="bg-pink-50 p-4 rounded-3xl">
+                                        <div className="text-pink-300 text-xs font-black uppercase">Moves</div>
+                                        <div className="text-pink-500 text-2xl font-black">{state.moves}</div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={() => restart()}
+                                    className="mt-4 px-8 py-4 bg-pink-500 text-white font-black rounded-3xl shadow-lg hover:bg-pink-600 transition-all active:scale-95 flex items-center gap-2"
+                                >
+                                    <RotateCcw className="w-6 h-6" /> Play Again
+                                </button>
+                            </motion.div>
+
+                            {/* Confetti particles - simplified for framer motion */}
+                            {Array.from({ length: 20 }).map((_, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{
+                                        x: Math.random() * window.innerWidth,
+                                        y: window.innerHeight + 100,
+                                        rotate: 0,
+                                        scale: Math.random() + 0.5
+                                    }}
+                                    animate={{
+                                        y: -100,
+                                        rotate: 360,
+                                        x: (Math.random() - 0.5) * 400 + (window.innerWidth / 2)
+                                    }}
+                                    transition={{
+                                        duration: Math.random() * 2 + 2,
+                                        repeat: Infinity,
+                                        ease: "linear",
+                                        delay: Math.random() * 3
+                                    }}
+                                    className={`fixed w-4 h-4 rounded-sm ${['bg-pink-300', 'bg-yellow-200', 'bg-blue-200', 'bg-purple-200'][i % 4]}`}
+                                />
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Auto-complete (一括あがり) */}
+                {canAutoComplete && (
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60]">
+                        <button
+                            onClick={autoComplete}
+                            className="px-6 py-3 bg-pink-500 text-white font-black rounded-full shadow-lg shadow-pink-300 hover:bg-pink-600 transition-all active:scale-95 flex items-center gap-2 animate-pulse"
+                        >
+                            <Sparkles className="w-5 h-5" /> 一括あがり
+                        </button>
+                    </div>
+                )}
+
+                {/* 神の手（初心者限定）— 目立つフローティングボタン */}
+                {isBeginner && (
+                    <button
+                        onClick={() => { setSwapSource(null); setSwapMode(m => !m); }}
+                        className={`fixed bottom-6 right-4 z-[70] px-4 py-3 rounded-full shadow-xl font-black flex items-center gap-1.5 border-2 transition-all active:scale-95 ${swapMode
+                            ? 'bg-purple-600 text-white border-white/70 ring-4 ring-purple-300'
+                            : 'bg-gradient-to-br from-amber-300 via-pink-400 to-purple-500 text-white border-white/70 shadow-purple-300/50 animate-pulse hover:scale-105'}`}
+                        title="神の手（初心者だけのズル）"
+                    >
+                        <Wand2 className="w-5 h-5" /> {swapMode ? 'やめる' : '神の手'}
+                    </button>
+                )}
+
+                {/* 神の手モードの案内 */}
+                {isBeginner && swapMode && !swapSource && (
+                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+                        <div className="bg-purple-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-black flex items-center gap-2">
+                            <Wand2 className="w-4 h-4" /> 変えたい表向きカードをタップ ✨
+                        </div>
+                    </div>
+                )}
+
+                {/* カード入れ替えピッカー（初心者ズル） */}
+                {isBeginner && swapMode && swapSource && (
+                    <div className="fixed inset-0 z-[95] bg-black/30 backdrop-blur-sm flex items-center justify-center p-3" onClick={cancelSwap}>
+                        <div className="bg-white rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl border-4 border-purple-200" onClick={e => e.stopPropagation()}>
+                            <div className="text-center font-black text-purple-600 mb-1 flex items-center justify-center gap-1">
+                                <Wand2 className="w-4 h-4" /> 神の手 — どのカードにする？
+                            </div>
+                            <div className="text-[11px] text-purple-400 text-center mb-3">
+                                選択中: <span className="font-bold">{cardLabel(swapSource.suit, swapSource.rank)}</span> ／ 組札のカードは選べません
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                {SUITS.map(suit => (
+                                    <div key={suit} className="flex gap-0.5">
+                                        {RANKS.map(rank => {
+                                            const inFoundation = state.foundation.some(p => p.some(c => c.suit === suit && c.rank === rank));
+                                            const isSource = swapSource.suit === suit && swapSource.rank === rank;
+                                            const disabled = inFoundation || isSource;
+                                            const red = suit === 'hearts' || suit === 'diamonds';
+                                            return (
+                                                <button
+                                                    key={rank}
+                                                    disabled={disabled}
+                                                    onClick={() => doSwap(suit, rank as Rank)}
+                                                    className={`flex-1 min-w-0 aspect-[2/3] rounded text-[8px] sm:text-[10px] font-bold leading-tight flex flex-col items-center justify-center transition-all active:scale-90 ${disabled ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : (red ? 'bg-pink-50 text-pink-500 hover:bg-pink-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-200')}`}
+                                                >
+                                                    <span>{RANK_LABEL[rank] || rank}</span>
+                                                    <span>{SUIT_SYMBOL[suit]}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                onClick={cancelSwap}
+                                className="mt-3 w-full py-2 bg-purple-100 text-purple-500 font-bold rounded-xl hover:bg-purple-200 transition-all active:scale-95"
+                            >
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Toast / Hint Message */}
+                {!canAutoComplete && !swapMode && !state.hint && state.moves > 5 && (
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+                        <div className="bg-white/80 backdrop-blur-md border border-pink-100 px-4 py-2 rounded-full shadow-lg text-[10px] sm:text-xs text-pink-400 font-black uppercase tracking-widest flex items-center gap-2">
+                            <MousePointer2 className="w-3 h-3" /> Double click to auto move
+                        </div>
+                    </div>
+                )}
+
+            </div>
+        </DndContext>
+    );
+};
+
+export default App;
