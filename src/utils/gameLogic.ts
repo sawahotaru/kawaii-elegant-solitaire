@@ -1,5 +1,6 @@
 import { Card, Suit, Rank, GameState, Difficulty, GameStateSnapshot } from '../types/game';
 import { isSolvable } from './solver';
+import { isForwardWinnable } from './forwardSolver';
 
 export const SUITS: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
 export const RANKS: Rank[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -72,17 +73,25 @@ const dealLayout = (): { tableau: Card[][]; stock: Card[] } => {
     return { tableau, stock: fullDeck.slice(deckIndex) };
 };
 
-// 難易度別の可解判定ノード予算（小さいほど「易しく速攻で解ける盤面」だけ通る）。
-// expert は判定しない（純ランダム＝不可能盤面もあり得る挑戦モード）。
-const SOLVE_BUDGET: Record<Difficulty, number> = { beginner: 2500, normal: 12000, expert: 0 };
+// 中級(normal)の perfect-info 可解判定ノード予算。
+const NORMAL_SOLVE_BUDGET = 12000;
 const MAX_DEAL_ATTEMPTS = 120;
 
-/** 難易度に応じて配りを生成。beginner/normal は「解ける盤面」のみ採用（試行上限つき）。 */
+/**
+ * 難易度に応じて配りを生成（試行上限つき）。
+ * - beginner: 伏せ札を先読みしない“手なりプレイ”で解ける盤面のみ（＝ほぼ必勝の入門ティア）。
+ *             perfect-info 可解だけでは人間視点の易しさに直結しないため forward 判定を使う。
+ * - normal:   perfect-info ソルバーで「解ける手順が存在する」盤面のみ（要・計画的プレイ）。
+ * - expert:   純ランダム（不可能盤面もあり得る挑戦モード）。
+ */
 const generateDeal = (difficulty: Difficulty): { tableau: Card[][]; stock: Card[] } => {
     if (difficulty === 'expert') return dealLayout();
+    const accept = difficulty === 'beginner'
+        ? (d: { tableau: Card[][]; stock: Card[] }) => isForwardWinnable(d.tableau, d.stock, 1)
+        : (d: { tableau: Card[][]; stock: Card[] }) => isSolvable(d.tableau, d.stock, NORMAL_SOLVE_BUDGET);
     let last = dealLayout();
     for (let i = 0; i < MAX_DEAL_ATTEMPTS; i++) {
-        if (isSolvable(last.tableau, last.stock, SOLVE_BUDGET[difficulty])) return last;
+        if (accept(last)) return last;
         last = dealLayout();
     }
     return last; // 上限到達時のフォールバック（無限ループ防止）

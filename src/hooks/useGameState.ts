@@ -47,7 +47,9 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal', initialHi
     }, [state.gameStatus]);
 
     const pushToUndo = (s: GameState) => {
-        const limit = s.difficulty === 'expert' ? 3 : s.difficulty === 'normal' ? 100 : 999;
+        // 上級は「配り(純ランダム draw-3)」で難度を出す方針。Undo不足でミスタップを取り返せない
+        // 理不尽さを避けるため 3→50 に緩和（初心者999 / 中級100 との序列は維持）。
+        const limit = s.difficulty === 'expert' ? 50 : s.difficulty === 'normal' ? 100 : 999;
         const newStack = [deepCopyState(s), ...s.undoStack].slice(0, limit);
         return newStack;
     };
