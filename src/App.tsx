@@ -105,10 +105,16 @@ const App: React.FC = () => {
     }, [muted]);
 
     // Unlock audio + start BGM on the first user gesture (autoplay policy).
+    // capture:true で dnd-kit 等が pointerdown を消費する前に確実に発火させ、
+    // pointer/touch/mouse/key の最初のどれでも解錠する（取りこぼし防止）。
     useEffect(() => {
-        const unlock = () => { audio.resume(); window.removeEventListener('pointerdown', unlock); };
-        window.addEventListener('pointerdown', unlock);
-        return () => window.removeEventListener('pointerdown', unlock);
+        const events: (keyof WindowEventMap)[] = ['pointerdown', 'touchstart', 'mousedown', 'keydown'];
+        const unlock = () => {
+            audio.resume();
+            events.forEach(ev => window.removeEventListener(ev, unlock, true));
+        };
+        events.forEach(ev => window.addEventListener(ev, unlock, true));
+        return () => events.forEach(ev => window.removeEventListener(ev, unlock, true));
     }, []);
 
     // Victory fanfare.

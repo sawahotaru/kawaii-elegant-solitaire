@@ -22,6 +22,8 @@ class AudioEngine {
     private bgmTimer: ReturnType<typeof setTimeout> | null = null;
     private bgmStartTime = 0;
     private bgmPlaying = false;
+    // 現在スケジュール済みのBGM発音。mute時に確実に止めて、unmute時の「旧ループの鳴き残り」重複を防ぐ。
+    private bgmVoices: { osc: OscillatorNode; g: GainNode; end: number }[] = [];
 
     private muted = false;
     private unlocked = false;
@@ -54,7 +56,9 @@ class AudioEngine {
             this.bgmGain.connect(lp);
             lp.connect(this.master);
         }
-        if (this.ctx.state === 'suspended') void this.ctx.resume();
+        // 常に resume を試みる（running なら無害）。autoplay ポリシーで suspended のまま
+        // 無音になるのを防ぐ。
+        void this.ctx.resume();
         return this.ctx;
     }
 
@@ -77,10 +81,14 @@ class AudioEngine {
         const ctx = this.ensure();
         if (!ctx) return;
         this.unlocked = true;
-        if (!this.muted) this.startBGM();
+        // resume は非同期。解決後に（まだ非ミュートなら）確実にBGMを開始する。
+        // 初回ジェスチャー時、生成直後の ctx が suspended でも取りこぼさない。
+        const kick = () => { if (!this.muted) this.startBGM(); };
+        kick();
+        void ctx.resume().then(kick).catch(() => { /* ignore */ });
     }
 
-    private note(freq: number, start: number, dur: number, opts: NoteOpts = {}): void {
+    private note(freq: number, start: number, dur: number, opts: NoteOpts = {}): { osc: OscillatorNode; g: GainNode; end: number } | void {
         if (!this.ctx) return;
         const dest = opts.dest ?? this.sfxGain;
         if (!dest) return;
@@ -99,7 +107,9 @@ class AudioEngine {
         osc.connect(g);
         g.connect(dest);
         osc.start(start);
-        osc.stop(start + dur + release + 0.05);
+        const end = start + dur + release + 0.05;
+        osc.stop(end);
+        return { osc, g, end };
     }
 
     private noiseSwish(start: number, dur: number, gain = 0.12): void {
@@ -207,30 +217,35 @@ class AudioEngine {
     }
 
     private scheduleLoop = (): void => {
-        if (!this.bgmPlaying || !this.bgmGain) return;
+        if (!this.bgmPlaying || !this.bgmGain || !this.ctx) return;
+        // 再生し終えた発音の参照を掃除（メモリ肥大＆stopBGM時の無駄処理を防ぐ）
+        const now = this.ctx.currentTime;
+        this.bgmVoices = this.bgmVoices.filter(v => v.end > now);
         const steps = this.melody.length;
         const loopStart = this.bgmStartTime;
         for (let i = 0; i < steps; i++) {
             const when = loopStart + i * this.STEP;
             const m = this.melody[i];
             if (m) {
-                this.note(m, when, this.STEP * 0.9, {
+                const v = this.note(m, when, this.STEP * 0.9, {
                     type: 'triangle',
                     gain: 0.1,
                     dest: this.bgmGain,
                     attack: 0.04,
                     release: 0.25,
                 });
+                if (v) this.bgmVoices.push(v);
             }
             const b = this.bass[i];
             if (b) {
-                this.note(b, when, this.STEP * 3.6, {
+                const v = this.note(b, when, this.STEP * 3.6, {
                     type: 'sine',
                     gain: 0.12,
                     dest: this.bgmGain,
                     attack: 0.05,
                     release: 0.3,
                 });
+                if (v) this.bgmVoices.push(v);
             }
         }
         const loopDur = steps * this.STEP;
@@ -244,6 +259,20 @@ class AudioEngine {
             clearTimeout(this.bgmTimer);
             this.bgmTimer = null;
         }
+        // スケジュール済みのBGM発音を実際に止める。これをしないと mute で gain=0 に
+        // しても発音オブジェクトは生き残り、unmute で master を戻した瞬間に旧ループが
+        // 蘇って新ループと重なる（＝「最初の音が変」）。短いフェードでプチノイズも回避。
+        if (this.ctx) {
+            const now = this.ctx.currentTime;
+            for (const v of this.bgmVoices) {
+                try {
+                    v.g.gain.cancelScheduledValues(now);
+                    v.g.gain.setTargetAtTime(0.0001, now, 0.02);
+                    v.osc.stop(now + 0.1);
+                } catch { /* すでに停止済みなら無視 */ }
+            }
+        }
+        this.bgmVoices = [];
     }
 }
 
