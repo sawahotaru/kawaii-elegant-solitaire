@@ -20,6 +20,7 @@
 
 > サーバー不要・インストール不要。ブラウザで今すぐプレイできます 🌸
 > `main` ブランチへ push するたびに GitHub Actions が自動でビルド＆デプロイします。
+> ミラー: <https://lab.4510.be/solitaire/> でも同じものを公開しています（作者の実験ハブ）。
 
 ![Kawaii & Elegant Solitaire スクリーンショット](assets/screenshot.png)
 
