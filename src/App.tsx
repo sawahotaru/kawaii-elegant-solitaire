@@ -275,12 +275,12 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-game-bg text-gray-800 font-sans selection:bg-pink-200">
 
                 {/* Header HUD */}
-                <header className="fixed top-0 inset-x-0 h-16 sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-sm px-2 sm:px-4 flex items-center justify-between gap-1">
+                <header className="fixed top-0 inset-x-0 h-16 sm:h-[88px] bg-white/60 backdrop-blur-md z-50 border-b border-pink-100 shadow-xs px-2 sm:px-4 flex items-center justify-between gap-1">
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                         {/* スマホ用ハンバーガー（難易度/ヒント/サウンドをドロワーへ集約） */}
                         <button
                             onClick={() => setMenuOpen(true)}
-                            className="sm:hidden p-2 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 shrink-0"
+                            className="sm:hidden p-2 bg-white text-pink-500 rounded-xl shadow-xs border border-pink-50 transition-all active:scale-95 shrink-0"
                             title="メニュー"
                             aria-label="メニューを開く"
                         >
@@ -297,7 +297,7 @@ const App: React.FC = () => {
                                         key={d.key}
                                         onClick={() => changeDifficulty(d.key)}
                                         title={`難易度: ${d.label}`}
-                                        className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-400 hover:bg-pink-200/70'}`}
+                                        className={`text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow-sm' : 'bg-pink-100/60 text-pink-400 hover:bg-pink-200/70'}`}
                                     >
                                         {d.label}
                                     </button>
@@ -312,7 +312,7 @@ const App: React.FC = () => {
                                         key={o.key}
                                         onClick={() => changeHintLimit(o.key)}
                                         title={`ヒント上限: ${o.key === 'auto' ? '難易度準拠' : o.key === 'inf' ? '無制限' : o.label}`}
-                                        className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow' : 'bg-pink-100/50 text-pink-400 hover:bg-pink-200/60'}`}
+                                        className={`text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow-sm' : 'bg-pink-100/50 text-pink-400 hover:bg-pink-200/60'}`}
                                     >
                                         {o.label}
                                     </button>
@@ -341,14 +341,14 @@ const App: React.FC = () => {
                     <div className="flex gap-1 sm:gap-2 shrink-0">
                         <button
                             onClick={() => setMuted(m => !m)}
-                            className="hidden sm:block p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            className="hidden sm:block p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-xs border border-pink-50 transition-all active:scale-95"
                             title={muted ? 'Unmute' : 'Mute'}
                         >
                             {muted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
                         </button>
                         <button
                             onClick={() => { audio.playUndo(); undo(); }}
-                            className="p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-sm border border-pink-50 transition-all active:scale-95"
+                            className="p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-xs border border-pink-50 transition-all active:scale-95"
                             title="Undo"
                         >
                             <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -356,7 +356,7 @@ const App: React.FC = () => {
                         <button
                             onClick={() => { audio.playHint(); showHint(); }}
                             disabled={state.hintsRemaining <= 0}
-                            className={`p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl shadow-sm border border-pink-50 transition-all active:scale-95 flex flex-col items-center justify-center relative ${state.hintsRemaining <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pink-50'}`}
+                            className={`p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl shadow-xs border border-pink-50 transition-all active:scale-95 flex flex-col items-center justify-center relative ${state.hintsRemaining <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-pink-50'}`}
                             title="Hint"
                         >
                             <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -383,7 +383,7 @@ const App: React.FC = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="sm:hidden fixed inset-0 z-[90] flex"
+                            className="sm:hidden fixed inset-0 z-90 flex"
                             onClick={() => setMenuOpen(false)}
                         >
                             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
@@ -416,7 +416,7 @@ const App: React.FC = () => {
                                             <button
                                                 key={d.key}
                                                 onClick={() => { changeDifficulty(d.key); setMenuOpen(false); }}
-                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow' : 'bg-pink-100/60 text-pink-500 hover:bg-pink-200/70'}`}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${state.difficulty === d.key ? 'bg-pink-500 text-white shadow-sm' : 'bg-pink-100/60 text-pink-500 hover:bg-pink-200/70'}`}
                                             >
                                                 {d.label}
                                             </button>
@@ -435,7 +435,7 @@ const App: React.FC = () => {
                                                 key={o.key}
                                                 onClick={() => changeHintLimit(o.key)}
                                                 title={`ヒント上限: ${o.key === 'auto' ? '難易度準拠' : o.key === 'inf' ? '無制限' : o.label}`}
-                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow' : 'bg-pink-100/50 text-pink-500 hover:bg-pink-200/60'}`}
+                                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${hintKey === o.key ? 'bg-pink-400 text-white shadow-sm' : 'bg-pink-100/50 text-pink-500 hover:bg-pink-200/60'}`}
                                             >
                                                 {o.label}
                                             </button>
@@ -600,7 +600,7 @@ const App: React.FC = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-[100] bg-pink-500/80 backdrop-blur-lg flex flex-col items-center justify-center p-8 text-white overflow-hidden"
+                            className="fixed inset-0 z-100 bg-pink-500/80 backdrop-blur-lg flex flex-col items-center justify-center p-8 text-white overflow-hidden"
                         >
                             <motion.div
                                 initial={{ scale: 0.8, y: 50 }}
@@ -653,7 +653,7 @@ const App: React.FC = () => {
                                         ease: "linear",
                                         delay: Math.random() * 3
                                     }}
-                                    className={`fixed w-4 h-4 rounded-sm ${['bg-pink-300', 'bg-yellow-200', 'bg-blue-200', 'bg-purple-200'][i % 4]}`}
+                                    className={`fixed w-4 h-4 rounded-xs ${['bg-pink-300', 'bg-yellow-200', 'bg-blue-200', 'bg-purple-200'][i % 4]}`}
                                 />
                             ))}
                         </motion.div>
@@ -662,7 +662,7 @@ const App: React.FC = () => {
 
                 {/* Auto-complete (一括あがり) */}
                 {canAutoComplete && (
-                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60]">
+                    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-60">
                         <button
                             onClick={autoComplete}
                             className="px-6 py-3 bg-pink-500 text-white font-black rounded-full shadow-lg shadow-pink-300 hover:bg-pink-600 transition-all active:scale-95 flex items-center gap-2 animate-pulse"
@@ -676,9 +676,9 @@ const App: React.FC = () => {
                 {isBeginner && (
                     <button
                         onClick={() => { setSwapSource(null); setSwapMode(m => !m); }}
-                        className={`fixed bottom-6 right-4 z-[70] px-4 py-3 rounded-full shadow-xl font-black flex items-center gap-1.5 border-2 transition-all active:scale-95 ${swapMode
+                        className={`fixed bottom-6 right-4 z-70 px-4 py-3 rounded-full shadow-xl font-black flex items-center gap-1.5 border-2 transition-all active:scale-95 ${swapMode
                             ? 'bg-purple-600 text-white border-white/70 ring-4 ring-purple-300'
-                            : 'bg-gradient-to-br from-amber-300 via-pink-400 to-purple-500 text-white border-white/70 shadow-purple-300/50 animate-pulse hover:scale-105'}`}
+                            : 'bg-linear-to-br from-amber-300 via-pink-400 to-purple-500 text-white border-white/70 shadow-purple-300/50 animate-pulse hover:scale-105'}`}
                         title="神の手（初心者だけのズル）"
                     >
                         <Wand2 className="w-5 h-5" /> {swapMode ? 'やめる' : '神の手'}
@@ -687,7 +687,7 @@ const App: React.FC = () => {
 
                 {/* 神の手モードの案内 */}
                 {isBeginner && swapMode && !swapSource && (
-                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] pointer-events-none">
+                    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-60 pointer-events-none">
                         <div className="bg-purple-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-black flex items-center gap-2">
                             <Wand2 className="w-4 h-4" /> 変えたい表向きカードをタップ ✨
                         </div>
@@ -696,7 +696,7 @@ const App: React.FC = () => {
 
                 {/* カード入れ替えピッカー（初心者ズル） */}
                 {isBeginner && swapMode && swapSource && (
-                    <div className="fixed inset-0 z-[95] bg-black/30 backdrop-blur-sm flex items-center justify-center p-3" onClick={cancelSwap}>
+                    <div className="fixed inset-0 z-95 bg-black/30 backdrop-blur-sm flex items-center justify-center p-3" onClick={cancelSwap}>
                         <div className="bg-white rounded-3xl p-4 sm:p-5 w-full max-w-md shadow-2xl border-4 border-purple-200" onClick={e => e.stopPropagation()}>
                             <div className="text-center font-black text-purple-600 mb-1 flex items-center justify-center gap-1">
                                 <Wand2 className="w-4 h-4" /> 神の手 — どのカードにする？
@@ -717,7 +717,7 @@ const App: React.FC = () => {
                                                     key={rank}
                                                     disabled={disabled}
                                                     onClick={() => doSwap(suit, rank as Rank)}
-                                                    className={`flex-1 min-w-0 aspect-[2/3] rounded text-[8px] sm:text-[10px] font-bold leading-tight flex flex-col items-center justify-center transition-all active:scale-90 ${disabled ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : (red ? 'bg-pink-50 text-pink-500 hover:bg-pink-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-200')}`}
+                                                    className={`flex-1 min-w-0 aspect-2/3 rounded-sm text-[8px] sm:text-[10px] font-bold leading-tight flex flex-col items-center justify-center transition-all active:scale-90 ${disabled ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : (red ? 'bg-pink-50 text-pink-500 hover:bg-pink-200' : 'bg-gray-50 text-gray-700 hover:bg-gray-200')}`}
                                                 >
                                                     <span>{RANK_LABEL[rank] || rank}</span>
                                                     <span>{SUIT_SYMBOL[suit]}</span>

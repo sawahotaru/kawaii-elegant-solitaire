@@ -1,6 +1,17 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* Tailwind v4 は設定をCSSで持つ（旧 tailwind.config.js の theme.extend を移設）。
+   content の指定は不要＝v4 はソースを自動検出する。 */
+@theme {
+  --color-game-bg: #fdf2f8;
+  --color-card-red: #ef4444;
+  --color-card-black: #1f2937;
+  --color-lavender-100: #f3e8ff;
+  --color-lavender-200: #e9d5ff;
+  --color-lavender-300: #d8b4fe;
+
+  --font-sans: 'Outfit', 'Inter', sans-serif;
+}
 
 :root {
   font-family: 'Outfit', 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
