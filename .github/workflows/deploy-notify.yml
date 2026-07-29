@@ -1,6 +1,7 @@
 name: Deploy to lab.4510.be
 
-# このリポジトリの main が更新されたら、統合ハブ oracle-lab のデプロイを起動する。
+# このリポジトリの main が更新されたら、まずビルドが通ることを確かめ、**通ったときだけ**
+# 統合ハブ oracle-lab のデプロイを起動する。
 # oracle-lab 側 (deploy-oracle.yml) が repository_dispatch: solitaire-updated を受け、
 # solitaire を **CI側で Vite ビルド → dist/ をVMへ rsync**（Caddyが静的配信）する。
 # solitaire は compose サービスではないため、VMでのコンテナビルドは発生しない（超低負荷）。
@@ -13,10 +14,38 @@ name: Deploy to lab.4510.be
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
+  build:
+    name: tsc + vite build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # npm run build = tsc && vite build。型エラーでもビルドエラーでも落ちる。
+      # 壊れた状態で oracle-lab を起こさないための門番。
+      - run: npm run build
+
+      - name: Check build output
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html was not produced"; exit 1; }
+          ls -la dist
+
   notify:
+    name: Trigger oracle-lab deploy
+    needs: build
+    # ビルドが通った main への push のときだけデプロイする（PR では走らせない）
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger oracle-lab deploy (scoped to solitaire)
