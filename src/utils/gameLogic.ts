@@ -73,6 +73,50 @@ const dealLayout = (): { tableau: Card[][]; stock: Card[] } => {
     return { tableau, stock: fullDeck.slice(deckIndex) };
 };
 
+/**
+ * 高ランク寄せの重み付き抽選（rank^pow に比例）。pow=0 で通常のランダム。
+ * pool から選んだ1枚を取り除いて返す（破壊的）。
+ */
+const pickWeightedHigh = (pool: Card[], pow: number): Card => {
+    let total = 0;
+    for (const c of pool) total += Math.pow(c.rank, pow);
+    let r = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+        r -= Math.pow(pool[i].rank, pow);
+        if (r <= 0) return pool.splice(i, 1)[0];
+    }
+    return pool.pop() as Card;
+};
+
+// 初心者モードの高ランク寄せ強度。
+// FACE: 場札7列の表向きカード（K/Q/J が並ぶと空列にKを置ける・重ねる先が多い）
+// STOCK: 山札の並び（先頭＝先にめくられる側ほど高ランクになりやすい）
+const BEGINNER_FACE_POW = 1.6;
+const BEGINNER_STOCK_POW = 0.9;
+
+/**
+ * Klondike の初期配置を作る（高ランク寄せ版）。
+ * 表向きになる7枚と山札の序盤に大きい数字が来やすくする。伏せ札はランダムのまま。
+ */
+const dealLayoutHighBiased = (facePow: number, stockPow: number): { tableau: Card[][]; stock: Card[] } => {
+    const pool = shuffle(createDeck());
+    const faceUp: Card[] = [];
+    for (let i = 0; i < 7; i++) faceUp.push(pickWeightedHigh(pool, facePow));
+    const faceDown = pool.splice(0, 21); // 伏せ札はバイアス無し（見えないので体感に効かない）
+    const stock: Card[] = [];
+    while (pool.length) stock.push(pickWeightedHigh(pool, stockPow)); // 先頭＝先にめくる側から抽選
+
+    const tableau: Card[][] = Array.from({ length: 7 }, () => []);
+    let d = 0;
+    for (let col = 0; col < 7; col++) {
+        for (let k = 0; k < col; k++) tableau[col].push(faceDown[d++]);
+        const top = faceUp[col];
+        top.isFaceUp = true;
+        tableau[col].push(top);
+    }
+    return { tableau, stock };
+};
+
 // 中級(normal)の perfect-info 可解判定ノード予算。
 const NORMAL_SOLVE_BUDGET = 12000;
 const MAX_DEAL_ATTEMPTS = 120;
@@ -81,18 +125,23 @@ const MAX_DEAL_ATTEMPTS = 120;
  * 難易度に応じて配りを生成（試行上限つき）。
  * - beginner: 伏せ札を先読みしない“手なりプレイ”で解ける盤面のみ（＝ほぼ必勝の入門ティア）。
  *             perfect-info 可解だけでは人間視点の易しさに直結しないため forward 判定を使う。
+ *             加えて配り自体を高ランク寄せにして「序盤から動かせる」体感を作る（離脱対策）。
  * - normal:   perfect-info ソルバーで「解ける手順が存在する」盤面のみ（要・計画的プレイ）。
  * - expert:   純ランダム（不可能盤面もあり得る挑戦モード）。
  */
 const generateDeal = (difficulty: Difficulty): { tableau: Card[][]; stock: Card[] } => {
     if (difficulty === 'expert') return dealLayout();
-    const accept = difficulty === 'beginner'
+    const isBeginner = difficulty === 'beginner';
+    const make = isBeginner
+        ? () => dealLayoutHighBiased(BEGINNER_FACE_POW, BEGINNER_STOCK_POW)
+        : dealLayout;
+    const accept = isBeginner
         ? (d: { tableau: Card[][]; stock: Card[] }) => isForwardWinnable(d.tableau, d.stock, 1)
         : (d: { tableau: Card[][]; stock: Card[] }) => isSolvable(d.tableau, d.stock, NORMAL_SOLVE_BUDGET);
-    let last = dealLayout();
+    let last = make();
     for (let i = 0; i < MAX_DEAL_ATTEMPTS; i++) {
         if (accept(last)) return last;
-        last = dealLayout();
+        last = make();
     }
     return last; // 上限到達時のフォールバック（無限ループ防止）
 };
