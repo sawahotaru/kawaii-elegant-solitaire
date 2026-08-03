@@ -40,6 +40,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ソルバーが壊れたまま GitHub Pages へ出さないための門番（lab 側の CI と同じ理由）。
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build
 

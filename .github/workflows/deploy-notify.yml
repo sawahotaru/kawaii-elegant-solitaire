@@ -20,7 +20,7 @@ on:
 
 jobs:
   build:
-    name: tsc + vite build
+    name: vitest + tsc + vite build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -31,6 +31,11 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # ソルバーの回帰テスト。ビルドが通ることと、可解判定・オートコンプリートが
+      # 正しいことは別物で、後者が壊れても型エラーにはならない
+      # （「解けると称して詰み盤面を配る」「非合法な手順で勝ちにする」は緑のままビルドが通る）。
+      - run: npm test
 
       # npm run build = tsc && vite build。型エラーでもビルドエラーでも落ちる。
       # 壊れた状態で oracle-lab を起こさないための門番。
