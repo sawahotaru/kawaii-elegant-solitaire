@@ -13,6 +13,20 @@ updates:
     commit-message:
       prefix: "deps"
     groups:
+      # ⚠ グループは「先に書いたものが優先」。vite 系はこの位置（npm-minor-patch より前）に置くこと。
+      #
+      # vite と @vitejs/plugin-react / vitest は peer dependency で噛み合っているため、
+      # **片方だけ上げる PR は必ず `npm error code ERESOLVE` で落ちる**
+      # （2026-08-03: vite 8 単独・plugin-react 6 単独の2本が実際に失敗。
+      #   手でまとめて上げた commit は通った）。
+      # 落ちると分かっている PR を毎回 major ごとに作らせても、CI が赤くなるだけで
+      # 誰の判断材料にもならないので、major を含めて1本にまとめる。
+      vite:
+        patterns:
+          - "vite"
+          - "vitest"
+          - "@vitejs/*"
+
       # patch/minor はまとめて1本に。major は個別PRで人が判断する
       npm-minor-patch:
         update-types:
