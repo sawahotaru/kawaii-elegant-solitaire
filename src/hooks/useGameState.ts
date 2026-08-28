@@ -200,6 +200,8 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal', initialHi
     // 【初心者限定・ズル】盤面の表向きカード(sourceId)と、欲しいカード(targetSuit/Rank)を入れ替える。
     // 重複が出ないよう2枚の正体(suit/rank/id)を交換し、各スロットの表裏は維持。
     // 組札(foundation)のカードは対象外＝完成列を壊さない。
+    // 交換先は **裏向きのカードだけ**（山札／場札の伏せ札）。表向きの札を相手にすると、
+    // 既に列に並べて見えているカードが黙って別物にすり替わり、盤面が信用できなくなる。
     const swapCards = useCallback((sourceId: string, targetSuit: Suit, targetRank: Rank) => {
         setState(prev => {
             if (prev.difficulty !== 'beginner' || prev.gameStatus !== 'playing') return prev;
@@ -213,6 +215,7 @@ export const useGameState = (initialDifficulty: Difficulty = 'normal', initialHi
             const src = pool.find(c => c.id === sourceId);
             const tgt = pool.find(c => c.suit === targetSuit && c.rank === targetRank);
             if (!src || !tgt || src === tgt) return prev; // 対象が組札 等で見つからない/同一なら何もしない
+            if (tgt.isFaceUp) return prev;               // 表向き（列に配置済み・めくり札）は交換先にできない
 
             const tmp = { suit: src.suit, rank: src.rank, id: src.id };
             src.suit = tgt.suit; src.rank = tgt.rank; src.id = tgt.id;

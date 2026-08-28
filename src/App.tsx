@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     DndContext,
     DragOverlay,
@@ -65,6 +65,13 @@ const App: React.FC = () => {
     const isBeginner = state.difficulty === 'beginner';
     const cancelSwap = () => { setSwapMode(false); setSwapSource(null); };
     const pickSwapSource = (card: CardType) => { if (swapMode && card.isFaceUp) setSwapSource(card); };
+    // 交換先に選べる札（＝裏向き: 山札と場札の伏せ札）。表向きの札を相手にすると、
+    // 見えているカードが黙ってすり替わってしまうため対象外にする。
+    const faceDownKeys = useMemo(() => new Set(
+        [...state.stock, ...state.tableau.flat()]
+            .filter(c => !c.isFaceUp)
+            .map(c => `${c.suit}-${c.rank}`)
+    ), [state.stock, state.tableau]);
     const doSwap = (suit: Suit, rank: Rank) => {
         if (swapSource) swapCards(swapSource.id, suit, rank);
         cancelSwap();
@@ -702,15 +709,20 @@ const App: React.FC = () => {
                                 <Wand2 className="w-4 h-4" /> 神の手 — どのカードにする？
                             </div>
                             <div className="text-[11px] text-purple-400 text-center mb-3">
-                                選択中: <span className="font-bold">{cardLabel(swapSource.suit, swapSource.rank)}</span> ／ 組札のカードは選べません
+                                選択中: <span className="font-bold">{cardLabel(swapSource.suit, swapSource.rank)}</span> ／ 見えているカード（列・組札・めくり札）は選べません
                             </div>
+                            {faceDownKeys.size === 0 && (
+                                <div className="text-[11px] text-purple-500 bg-purple-50 rounded-xl p-2 text-center mb-2">
+                                    裏向きのカードが残っていないので、いま交換できる相手がいません。
+                                </div>
+                            )}
                             <div className="flex flex-col gap-1">
                                 {SUITS.map(suit => (
                                     <div key={suit} className="flex gap-0.5">
                                         {RANKS.map(rank => {
-                                            const inFoundation = state.foundation.some(p => p.some(c => c.suit === suit && c.rank === rank));
-                                            const isSource = swapSource.suit === suit && swapSource.rank === rank;
-                                            const disabled = inFoundation || isSource;
+                                            // 交換先にできるのは裏向きの札だけ。表向き＝すでに列に配置済み・
+                                            // 組札・めくり札は、すり替えると盤面から札が消えて見えるのでグレーアウト。
+                                            const disabled = !faceDownKeys.has(`${suit}-${rank}`);
                                             const red = suit === 'hearts' || suit === 'diamonds';
                                             return (
                                                 <button
