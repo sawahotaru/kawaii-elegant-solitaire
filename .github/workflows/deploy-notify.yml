@@ -1,15 +1,9 @@
-name: Deploy to lab.4510.be
+name: CI
 
-# このリポジトリの main が更新されたら、まずビルドが通ることを確かめ、**通ったときだけ**
-# 統合ハブ oracle-lab のデプロイを起動する。
-# oracle-lab 側 (deploy-oracle.yml) が repository_dispatch: solitaire-updated を受け、
-# solitaire を **CI側で Vite ビルド → dist/ をVMへ rsync**（Caddyが静的配信）する。
-# solitaire は compose サービスではないため、VMでのコンテナビルドは発生しない（超低負荷）。
+# main が更新されたらビルドが通ることを確かめ、**通ったときだけ**公開先へ反映を依頼する。
+# 壊れた版が公開に出ないための門番。
 #
-# ※ 既存の GitHub Pages 向け deploy.yml とは別物（併存）。Pages と lab.4510.be/solitaire/ の両方へ出る。
-#
-# 必要な設定（1回だけ）: Settings → Secrets and variables → Actions に Secret `OL_DISPATCH_PAT`。
-#   値は sawahotaru/oracle-lab へ書き込める PAT（fine-grained: Contents Read and write／classic: repo）。
+# デプロイ通知には Secret `OL_DISPATCH_PAT` が要る（設定手順は運用側で管理）。
 
 on:
   push:
@@ -38,7 +32,7 @@ jobs:
       - run: npm test
 
       # npm run build = tsc && vite build。型エラーでもビルドエラーでも落ちる。
-      # 壊れた状態で oracle-lab を起こさないための門番。
+      # 壊れた状態で公開先を起こさないための門番。
       - run: npm run build
 
       - name: Check build output
@@ -47,13 +41,13 @@ jobs:
           ls -la dist
 
   notify:
-    name: Trigger oracle-lab deploy
+    name: Notify deploy
     needs: build
     # ビルドが通った main への push のときだけデプロイする（PR では走らせない）
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger oracle-lab deploy (scoped to solitaire)
+      - name: Notify deploy
         env:
           TOKEN: ${{ secrets.OL_DISPATCH_PAT }}
         run: |
@@ -67,4 +61,4 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/sawahotaru/oracle-lab/dispatches \
             -d '{"event_type":"solitaire-updated","client_payload":{"service":"solitaire","ref":"${{ github.sha }}"}}'
-          echo "Dispatched solitaire-updated → oracle-lab (CI builds Vite, rsync dist)."
+          echo "Dispatched."
