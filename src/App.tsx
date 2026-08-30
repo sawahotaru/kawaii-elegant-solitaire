@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     DndContext,
     DragOverlay,
@@ -95,20 +95,32 @@ const App: React.FC = () => {
 
     const [activeCardId, setActiveCardId] = useState<string | null>(null);
     const [activeStack, setActiveStack] = useState<CardType[]>([]);
-    const [muted, setMuted] = useState<boolean>(() => {
-        // Music/sound is muted by default; only unmuted if the user previously opted in.
-        // The key is versioned (-v2) so stale '0' values written by older builds, which
-        // always autosaved an unmuted preference, no longer suppress the muted default.
-        try {
-            const stored = localStorage.getItem('kawaii-muted-v2');
-            return stored === null ? true : stored === '1';
-        } catch { return true; }
-    });
+    // 表示は「実際に音が出るか」と必ず一致させる。ブラウザの autoplay ポリシーにより
+    // 初回のユーザー操作までは絶対に音が出せないので、保存済みの設定が「オン」でも
+    // 起動時は必ずミュート表示から始める（旧実装はここでオン表示になり、無音なのに
+    // スピーカーアイコンが「鳴っている」と嘘をついていた）。
+    const [muted, setMuted] = useState<boolean>(true);
+    // 保存済みの「オン」設定。実際に音を出せるようになった時点（初回ジェスチャー）で復元する。
+    const preferUnmutedRef = useRef<boolean | null>(null);
+    if (preferUnmutedRef.current === null) {
+        try { preferUnmutedRef.current = localStorage.getItem('kawaii-muted-v2') === '0'; }
+        catch { preferUnmutedRef.current = false; }
+    }
 
-    // Sync mute state to the audio engine and persist the preference.
+    // 明示的なユーザー操作でのみ切り替え、そのときだけ設定を保存する。
+    // （effect で自動保存すると、上記の「起動時は必ずミュート」がユーザーの設定を上書きしてしまう）
+    const toggleMuted = () => {
+        setMuted(prev => {
+            const next = !prev;
+            preferUnmutedRef.current = !next;
+            try { localStorage.setItem('kawaii-muted-v2', next ? '1' : '0'); } catch { /* ignore */ }
+            return next;
+        });
+    };
+
+    // Sync mute state to the audio engine.
     useEffect(() => {
         audio.setMuted(muted);
-        try { localStorage.setItem('kawaii-muted-v2', muted ? '1' : '0'); } catch { /* ignore */ }
     }, [muted]);
 
     // Unlock audio + start BGM on the first user gesture (autoplay policy).
@@ -116,8 +128,14 @@ const App: React.FC = () => {
     // pointer/touch/mouse/key の最初のどれでも解錠する（取りこぼし防止）。
     useEffect(() => {
         const events: (keyof WindowEventMap)[] = ['pointerdown', 'touchstart', 'mousedown', 'keydown'];
-        const unlock = () => {
+        const unlock = (e: Event) => {
             audio.resume();
+            // ここで初めて音が出せるようになるので、保存済みの「オン」設定を復元する。
+            // ただしサウンドボタン自身の操作なら、直後の onClick の意図（＝トグル）を
+            // 打ち消さないよう触らない。
+            const fromToggle =
+                e.target instanceof Element && !!e.target.closest('[data-sound-toggle]');
+            if (!fromToggle && preferUnmutedRef.current) setMuted(false);
             events.forEach(ev => window.removeEventListener(ev, unlock, true));
         };
         events.forEach(ev => window.addEventListener(ev, unlock, true));
@@ -347,7 +365,8 @@ const App: React.FC = () => {
 
                     <div className="flex gap-1 sm:gap-2 shrink-0">
                         <button
-                            onClick={() => setMuted(m => !m)}
+                            onClick={toggleMuted}
+                            data-sound-toggle
                             className="hidden sm:block p-1.5 sm:p-3 bg-white text-pink-500 rounded-xl hover:bg-pink-50 shadow-xs border border-pink-50 transition-all active:scale-95"
                             title={muted ? 'Unmute' : 'Mute'}
                         >
@@ -454,7 +473,8 @@ const App: React.FC = () => {
                                 <div>
                                     <div className="text-xs font-black text-pink-400 uppercase mb-2">サウンド</div>
                                     <button
-                                        onClick={() => setMuted(m => !m)}
+                                        onClick={toggleMuted}
+                                        data-sound-toggle
                                         className="w-full py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 bg-pink-100/60 text-pink-500 hover:bg-pink-200/70"
                                     >
                                         {muted ? <><VolumeX className="w-4 h-4" /> ミュート中</> : <><Volume2 className="w-4 h-4" /> オン</>}
