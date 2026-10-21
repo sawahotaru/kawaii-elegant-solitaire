@@ -25,6 +25,9 @@
   "bugs": {
     "url": "https://github.com/sawahotaru/kawaii-elegant-solitaire/issues"
   },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
